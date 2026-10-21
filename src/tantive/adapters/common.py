@@ -11,7 +11,7 @@ from fastapi import Request
 from tantive.ask import EmptyAsk, current_ask
 from tantive.capture import Capture
 from tantive.engine import Engine, Overloaded
-from tantive.errors import ApiError
+from tantive.errors import ApiError, error_body
 from tantive.model import ModelInfo, Outputs
 from tantive.questions import Catalogue, Question, UnknownQuestion
 from tantive.telemetry import log_decision, metrics
@@ -77,6 +77,47 @@ async def classify(core: Core, text: str) -> tuple[Outputs, float]:
             raise ApiError(
                 503, f"overloaded: expected wait {e.expected_wait_ms:.0f} ms", {"Retry-After": "1"}
             ) from None
+
+
+@dataclass(frozen=True)
+class Classified:
+    """One text through the engine: what the response and the decision line need."""
+
+    text: str
+    outputs: Outputs
+    latency_ms: float
+
+
+async def classify_text(core: Core, raw: str, *, litellm_marker: bool = True) -> Classified:
+    """The single route's path: the text within its limits (400, 413), then one pass through the engine (503)."""
+    text = ask_of(raw, litellm_marker=litellm_marker)
+    outputs, latency_ms = await classify(core, text)
+    return Classified(text, outputs, latency_ms)
+
+
+Item = Classified | ApiError  # a batch slot: the classified text, or what the single route would have answered
+
+
+async def classify_items(core: Core, raws: Sequence[str], *, litellm_marker: bool = True) -> list[Item]:
+    """The batch routes, per item: each text takes the single route's path, and what that route would refuse (blank
+    or too long text, shed) takes the item's slot instead of failing the batch. Body-level checks come before."""
+    items: list[Item] = []
+    for raw in raws:
+        try:
+            items.append(await classify_text(core, raw, litellm_marker=litellm_marker))
+        except ApiError as e:
+            items.append(e)
+    return items
+
+
+def item_error(e: ApiError) -> dict:
+    """The slot of a failed item: `{"error": {"message", "type"}}`, the shape of a refused request."""
+    return error_body(e.status_code, str(e.detail))
+
+
+def batch_status(items: Sequence[Item]) -> int:
+    """200 when at least one item succeeded, 422 when every item failed."""
+    return 200 if any(isinstance(i, Classified) for i in items) else 422
 
 
 def answer(core: Core, outputs: Outputs, question: Question):

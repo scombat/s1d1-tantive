@@ -198,7 +198,7 @@ async def test_scalar_state_is_400(client):
         assert r.status_code == 400, state
 
 
-async def test_batch_503_mid_way_counts_nothing(client, monkeypatch):
+async def test_batch_503_mid_way_fills_that_slot(client, monkeypatch):
     from tantive.engine import Engine, Overloaded
 
     calls = []
@@ -215,8 +215,35 @@ async def test_batch_503_mid_way_counts_nothing(client, monkeypatch):
     r = await client.post(
         "/v1/systemone/batch", json={"states": ["a", "b", "c"], "questions": tier_question("LOW", "HIGH")}
     )
-    assert r.status_code == 503
-    assert calls == ["a", "b"]
+    assert r.status_code == 200
+    assert calls == ["a", "b", "c"]
+    results = r.json()["results"]
+    assert results[1] == {"error": {"message": "overloaded: expected wait 999 ms", "type": "overloaded"}}
+    assert results[0]["answers"]["tier"]["type"] == results[2]["answers"]["tier"]["type"] == "choice"
+    assert _decisions_total(await client.get("/metrics")) == before + 2  # the items that succeeded
+
+
+async def test_batch_invalid_states_get_an_error_each(client):
+    states = ["a", "", "x" * 50_001, {"k": "v"}]
+    r = await client.post("/v1/systemone/batch", json={"states": states, "questions": tier_question("LOW", "HIGH")})
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert "answers" in results[0] and "answers" in results[3]
+    assert results[1]["error"]["type"] == "invalid_request_error"
+    assert results[2] == {"error": {"message": "text exceeds 50000 characters", "type": "request_too_large"}}
+
+
+async def test_batch_every_state_failed_is_422(client):
+    r = await client.post("/v1/systemone/batch", json={"states": ["", " "], "questions": tier_question("LOW", "HIGH")})
+    assert r.status_code == 422
+    assert [set(x) for x in r.json()["results"]] == [{"error"}, {"error"}]
+
+
+async def test_batch_question_outside_the_catalogue_fails_the_body(client):
+    before = _decisions_total(await client.get("/metrics"))
+    r = await client.post("/v1/systemone/batch", json={"states": ["a", "b"], "questions": tier_question("LOW")})
+    assert r.status_code == 422
+    assert r.json()["error"]["type"] == "unknown_question"
     assert _decisions_total(await client.get("/metrics")) == before
 
 

@@ -23,6 +23,10 @@ class ApiError(HTTPException):
         super().__init__(status_code, message, headers)
 
 
+def error_body(status_code: int, message: str) -> dict:
+    """The common shape, as a response body or as the slot of a failed batch item."""
+    return {"error": {"message": message, "type": ERROR_TYPES.get(status_code, "api_error")}}
+
+
 def error_response(status_code: int, message: str, headers: dict[str, str] | None = None) -> JSONResponse:
-    body = {"error": {"message": message, "type": ERROR_TYPES.get(status_code, "api_error")}}
-    return JSONResponse(body, status_code=status_code, headers=headers)
+    return JSONResponse(error_body(status_code, message), status_code=status_code, headers=headers)

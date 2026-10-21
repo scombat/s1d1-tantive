@@ -49,6 +49,26 @@ async def test_predict_over_32_400(client_predict):
     assert (await client_predict.post("/predict", json={"inputs": ["a"] * 33})).status_code == 400
 
 
+async def test_predict_list_answers_per_input(client_predict):
+    r = await client_predict.post("/predict", json={"inputs": ["a", "", "x" * 50_001]})
+    assert r.status_code == 200
+    j = r.json()
+    assert len(j[0]) == 21
+    assert j[1] == {"error": {"message": "no text to classify", "type": "invalid_request_error"}}
+    assert j[2]["error"]["type"] == "request_too_large"
+    assert r.headers["x-s1d1-pieces"] == "1"
+
+
+async def test_predict_every_input_failed_is_422(client_predict):
+    r = await client_predict.post("/predict", json={"inputs": [" ", ""]})
+    assert r.status_code == 422
+    assert all("error" in x for x in r.json())
+
+
+async def test_predict_single_blank_input_is_400(client_predict):
+    assert (await client_predict.post("/predict", json={"inputs": " "})).status_code == 400
+
+
 async def test_predict_off_by_default(client):
     assert (await client.post("/predict", json={"inputs": "x"})).status_code == 404
 

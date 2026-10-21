@@ -15,6 +15,7 @@ for everything else. One image per variant, for amd64 and arm64, signed and buil
 ## What you get
 
 - **Five formats on one model**: System One, OpenAI Decisions, chat-completions, vLLM `/classify`, TEI `/predict`, enabled by `S1D1_FORMATS`.
+- **Batches**: up to 32 prompts per call, a result or an error per prompt.
 - **Safe answers**: a fixed question catalogue, and a 422 for anything outside it.
 - **Probabilities you can threshold**: tier probabilities calibrated by the model's own σ.
 - **Long prompts handled**: `head_tail` by default, `chunks` when the middle matters.

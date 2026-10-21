@@ -2,17 +2,31 @@
 
 Labels: `complexity`, the 19 task names, `needs_tools`; sorted by score descending. `raw_scores: true` gives the raw
 outputs (complexity in tier units, task logits, needs_tools logit), otherwise the decoded values as /classify.
-A list of inputs gives a list of lists. `truncate` is accepted and ignored: long prompts follow
+A list of inputs gives a list of lists, per input: an input the single route would refuse gets `{"error"}` in its slot
+(422 when every input failed). `truncate` is accepted and ignored: long prompts follow
 `S1D1_LONG_PROMPTS`, and the `X-S1D1-Pieces` header gives the windows run.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, FastAPI, Request, Response
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from tantive.adapters import register
-from tantive.adapters.common import MAX_BATCH, Core, ask_of, check_count, classify, decoded_vector, raw_vector, record
+from tantive.adapters.common import (
+    MAX_BATCH,
+    Core,
+    batch_status,
+    check_count,
+    classify_items,
+    classify_text,
+    decoded_vector,
+    item_error,
+    raw_vector,
+    record,
+)
+from tantive.errors import ApiError
 from tantive.tasks import TASKS
 
 ROUTE, FORMAT = "/predict", "predict"
@@ -32,22 +46,27 @@ def router(_app: FastAPI) -> APIRouter:
     r = APIRouter(tags=["predict"])
 
     @r.post(ROUTE)
-    async def predict(request: Request, response: Response, body: PredictRequest) -> list:
+    async def predict(request: Request, body: PredictRequest) -> JSONResponse:
         core = Core.of(request)
-        inputs = [body.inputs] if isinstance(body.inputs, str) else body.inputs
-        check_count(inputs, MAX_BATCH, "input")
-        done = []  # all or nothing: a failing input fails the request and nothing is logged or counted
-        for raw in inputs:
-            text = ask_of(raw, litellm_marker=False)
-            outputs, latency_ms = await classify(core, text)
-            done.append((text, outputs, latency_ms))
-        results = []
-        response.headers["X-S1D1-Pieces"] = str(sum(o.pieces for _, o, _ in done))
-        for text, outputs, latency_ms in done:
-            record(core, ROUTE, FORMAT, outputs, latency_ms, prompt=text)
-            values = raw_vector(outputs) if body.raw_scores else decoded_vector(outputs)
+        if isinstance(body.inputs, str):  # one input: refused as a whole, as before
+            items = [await classify_text(core, body.inputs, litellm_marker=False)]
+        else:
+            check_count(body.inputs, MAX_BATCH, "input")
+            items = await classify_items(core, body.inputs, litellm_marker=False)
+        results: list = []
+        for item in items:
+            if isinstance(item, ApiError):
+                results.append(item_error(item))
+                continue
+            record(core, ROUTE, FORMAT, item.outputs, item.latency_ms, prompt=item.text)
+            values = raw_vector(item.outputs) if body.raw_scores else decoded_vector(item.outputs)
             scored = [{"score": v, "label": label} for v, label in zip(values, LABELS, strict=True)]
             results.append(sorted(scored, key=lambda d: d["score"], reverse=True))
-        return results if isinstance(body.inputs, list) else results[0]
+        pieces = sum(i.outputs.pieces for i in items if not isinstance(i, ApiError))
+        return JSONResponse(
+            results if isinstance(body.inputs, list) else results[0],
+            status_code=batch_status(items),
+            headers={"X-S1D1-Pieces": str(pieces)},
+        )
 
     return r

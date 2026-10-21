@@ -1,23 +1,34 @@
 """System One (TypeSafe / Laya): what LiteLLM's Auto Router sends to a self-hosted classifier (spec § 3.5).
 
 POST /v1/systemone        {state, questions: {name: {type, instructions?, criteria?}}, model?, min_confidence?}
-POST /v1/systemone/batch  {states: [...], questions}  →  {"results": [...]}
+POST /v1/systemone/batch  {states: [...], questions}  →  {"results": [...]}, a response or an error per state
 Extra fields (Laya's controls) are accepted and ignored. `min_confidence` adds Laya's abstention fields.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from tantive.adapters import register
-from tantive.adapters.common import MAX_BATCH, MAX_QUESTIONS, Core, answer, ask_of, check_count, classify, record
+from tantive.adapters.common import (
+    MAX_BATCH,
+    MAX_QUESTIONS,
+    Classified,
+    Core,
+    answer,
+    batch_status,
+    check_count,
+    classify_items,
+    classify_text,
+    item_error,
+    record,
+)
 from tantive.ask import flatten_state
 from tantive.errors import ApiError
-from tantive.model import Outputs
 from tantive.questions import (
     ChoiceAnswer,
     ChoiceQuestion,
@@ -111,36 +122,24 @@ def to_wire(a: ChoiceAnswer | ScoreAnswer | PredicateAnswer, min_confidence: flo
     return wire
 
 
-@dataclass(frozen=True)
-class Decision:
-    """One classified state: its wire response and what the decision line records once the request succeeds."""
-
-    response: dict
-    outputs: Outputs
-    latency_ms: float
-    text: str
-
-    def record(self, core: Core) -> None:
-        record(core, ROUTE, FORMAT, self.outputs, self.latency_ms, prompt=self.text)
-
-
-async def decide(core: Core, state: Any, questions: dict[str, Question], min_confidence: float | None) -> Decision:
-    text = ask_of(flatten_state(state))
-    outputs, latency_ms = await classify(core, text)
-    answers = {name: to_wire(answer(core, outputs, q), min_confidence) for name, q in questions.items()}
-    response = {
+def respond(core: Core, c: Classified, questions: dict[str, Question], min_confidence: float | None) -> dict:
+    answers = {name: to_wire(answer(core, c.outputs, q), min_confidence) for name, q in questions.items()}
+    return {
         "model": core.model_name,
         "answers": answers,
-        "usage": {"input_tokens": outputs.prompt_tokens, "output_tokens": 0, "pieces": outputs.pieces},
+        "usage": {"input_tokens": c.outputs.prompt_tokens, "output_tokens": 0, "pieces": c.outputs.pieces},
         "routing": {
             "model": core.model_name,
-            "latency_ms": round(latency_ms, 1),
-            "complexity_score": outputs.complexity_score,
-            "truncated": outputs.truncated,
-            "pieces": outputs.pieces,
+            "latency_ms": round(c.latency_ms, 1),
+            "complexity_score": c.outputs.complexity_score,
+            "truncated": c.outputs.truncated,
+            "pieces": c.outputs.pieces,
         },
     }
-    return Decision(response, outputs, latency_ms, text)
+
+
+def record_state(core: Core, c: Classified) -> None:
+    record(core, ROUTE, FORMAT, c.outputs, c.latency_ms, prompt=c.text)
 
 
 def parse_questions(raw: dict[str, SystemOneQuestion]) -> dict[str, Question]:
@@ -155,18 +154,26 @@ def router(_app: FastAPI) -> APIRouter:
     @r.post(ROUTE)
     async def systemone(request: Request, body: SystemOneRequest) -> dict:
         core = Core.of(request)
-        decision = await decide(core, body.state, parse_questions(body.questions), body.min_confidence)
-        decision.record(core)
-        return decision.response
+        questions = parse_questions(body.questions)
+        c = await classify_text(core, flatten_state(body.state))
+        response = respond(core, c, questions, body.min_confidence)
+        record_state(core, c)
+        return response
 
     @r.post(ROUTE + "/batch")
-    async def systemone_batch(request: Request, body: SystemOneBatchRequest) -> dict:
-        """All or nothing: a state that fails (503, 413, 400) fails the batch, and nothing is logged or counted."""
+    async def systemone_batch(request: Request, body: SystemOneBatchRequest) -> JSONResponse:
+        """Per state: a state the single route would refuse (400, 413, 503) gets an error in its slot. The answers
+        are built before anything is recorded, so a question outside the catalogue (422) still fails the body."""
         check_count(body.states, MAX_BATCH, "state")
         core, questions = Core.of(request), parse_questions(body.questions)
-        decisions = [await decide(core, s, questions, body.min_confidence) for s in body.states]
-        for decision in decisions:
-            decision.record(core)
-        return {"results": [d.response for d in decisions]}
+        items = await classify_items(core, [flatten_state(s) for s in body.states])
+        results = [
+            item_error(i) if isinstance(i, ApiError) else respond(core, i, questions, body.min_confidence)
+            for i in items
+        ]
+        for i in items:
+            if isinstance(i, Classified):
+                record_state(core, i)
+        return JSONResponse({"results": results}, status_code=batch_status(items))
 
     return r

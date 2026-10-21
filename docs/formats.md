@@ -1,8 +1,7 @@
 # Request and response formats
 
-This page shows how to call each format s1d1-tantive speaks, what a minimal request and answer look like, and how
-the answer maps to the model's outputs. Mount the formats you need with `S1D1_FORMATS`
-(default `systemone,decisions,classify`; the others are `chat` and `predict`).
+This page shows how to call each format s1d1-tantive speaks: a minimal request, its answer, and how the answer maps to
+the model's outputs. `S1D1_FORMATS` mounts them (default `systemone,decisions,classify`; also `chat`, `predict`).
 
 ## The questions the service answers
 
@@ -16,9 +15,8 @@ System One and Decisions send *questions* about a text. The catalogue is fixed:
 | tools | a predicate named `needs_tools`, `tools` or `tool_use`, or instructions that mention a tool | the probability that the text needs a tool |
 | anything else | | **422**, with the catalogue in the message: the service never invents an answer |
 
-The tier is the tier of the score by its bounds (the nearest present tier on a subset). The probabilities are a
-Gaussian of width sigma centred on the score, cut by the tier intervals; the confidence is 1 minus the normalised
-entropy of those probabilities.
+The tier is the tier of the score by its bounds (the nearest present tier on a subset). The probabilities are a Gaussian
+of width sigma centred on the score, cut by the tier intervals; the confidence is 1 minus their normalised entropy.
 
 ## System One
 
@@ -35,11 +33,9 @@ curl -s localhost:8788/v1/systemone -H 'content-type: application/json' -d '{
  "usage": {"input_tokens": 7, "output_tokens": 0, "pieces": 1}, "routing": {"latency_ms": 4.5, "complexity_score": 0.485, "truncated": false, "pieces": 1}}
 ```
 
-`pieces` is the number of windows the prompt ran in (1 unless `S1D1_LONG_PROMPTS=chunks` met a long prompt);
-`truncated` is true when some of the text was in no window. `state` is a string, a list or an object (flattened to text). A `score` takes `criteria` as a list of levels, a
-predicate is `{"type": "noul"}` and answers `{"noul": 0.001}`. `min_confidence` adds the abstention fields.
-`POST /v1/systemone/batch` takes `{"states": [...], "questions": {...}}` (up to 32 states) and answers
-`{"results": [...]}`, all or nothing. Limits: 64 questions per request.
+`pieces` counts the windows the prompt ran in (more than 1 only under `S1D1_LONG_PROMPTS=chunks`); `truncated` says some
+text was in no window. `state` is a string, a list or an object (flattened). A `score` takes `criteria` as a list of
+levels, a predicate is `{"type": "noul"}` and answers `{"noul": 0.001}`. `min_confidence` adds the abstention fields.
 
 ## OpenAI Decisions
 
@@ -106,9 +102,19 @@ curl -s localhost:8788/predict -H 'content-type: application/json' -d '{"inputs"
 [{"score": 0.9998, "label": "writing"}, {"score": 0.156, "label": "complexity"}, {"score": 0.001, "label": "needs_tools"}, ...]
 ```
 
-21 entries sorted by score: `complexity`, the 19 tasks and `needs_tools`. With `raw_scores: true` you get the raw
-outputs instead (complexity in tier units, task logits, the `needs_tools` logit). The `X-S1D1-Pieces` header gives
-the windows the inputs ran in.
+21 entries sorted by score: `complexity`, the 19 tasks and `needs_tools`. `raw_scores: true` gives the raw outputs
+(complexity in tier units, task logits, the `needs_tools` logit). `X-S1D1-Pieces` gives the windows the inputs ran in.
+
+## Batch
+
+`POST /v1/systemone/batch` (`states`, answered as `{"results": [...]}`), `/classify` and `/predict` given a list answer
+per item: a valid item as on its own, a refused one (blank or too long text, shed) as `{"error": {...}}` in its slot,
+with its `index` in `/classify`. 200 when an item succeeded, 422 when all failed. Limits: 32 items, 50 000 characters
+each, body 2 MiB; invalid JSON, more items, a bigger body or a question outside the catalogue refuse the whole request.
+
+```json
+{"results": [{"answers": {"tier": {"type": "choice", "choice": "LOW", ...}}, ...}, {"error": {"message": "no text to classify", "type": "invalid_request_error"}}]}
+```
 
 ## Limits and error codes
 
@@ -120,5 +126,5 @@ Body 2 MiB, text 50 000 characters, 32 inputs per batch route, 64 questions (128
 | 401 | `S1D1_API_KEY` is set and the request carries no matching `Authorization: Bearer` or `x-api-key` |
 | 404 | the format is not mounted |
 | 413 | body or text too large |
-| 422 | question outside the catalogue |
+| 422 | question outside the catalogue; every item of a batch failed |
 | 503 | shed: the service is overloaded; retry (`Retry-After: 1`) |

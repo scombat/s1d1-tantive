@@ -38,6 +38,29 @@ async def test_classify_blank_400(client):
     assert (await client.post("/classify", json={"input": " "})).status_code == 400
 
 
+async def test_classify_list_answers_per_input(client):
+    r = await client.post("/classify", json={"input": ["a", " ", "x" * 50_001, "b"]})
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert [d["index"] for d in data] == [0, 1, 2, 3]
+    assert data[0]["label"] == data[3]["label"] == "MEDIUM"
+    assert data[1] == {"index": 1, "error": {"message": "no text to classify", "type": "invalid_request_error"}}
+    assert data[2]["error"]["type"] == "request_too_large"
+    assert r.json()["usage"]["pieces"] == 2  # the inputs that ran
+
+
+async def test_classify_every_input_failed_is_422(client):
+    r = await client.post("/classify", json={"input": ["", " "]})
+    assert r.status_code == 422
+    assert all("error" in d for d in r.json()["data"])
+
+
+async def test_classify_list_overloaded_fills_the_slots(client, overloaded_engine):
+    r = await client.post("/classify", json={"input": ["x"]})
+    assert r.status_code == 422
+    assert r.json()["data"][0]["error"]["type"] == "overloaded"
+
+
 async def test_classify_overloaded_503(client, overloaded_engine):
     assert (await client.post("/classify", json={"input": "x"})).status_code == 503
 

@@ -99,6 +99,43 @@ async def test_in_flight_gauge_reads_zero_after_requests(client):
     assert line.endswith(" 0.0")
 
 
+def test_item_error_has_the_error_shape():
+    from tantive.adapters.common import item_error
+    from tantive.errors import ApiError
+
+    assert item_error(ApiError(413, "text exceeds 50000 characters")) == {
+        "error": {"message": "text exceeds 50000 characters", "type": "request_too_large"}
+    }
+
+
+def test_batch_status_is_422_only_when_every_item_failed():
+    from tantive.adapters.common import Classified, batch_status
+    from tantive.errors import ApiError
+
+    ok, failed = Classified("a", outputs(), 1.0), ApiError(400, "no text to classify")
+    assert batch_status([ok, failed]) == 200
+    assert batch_status([ok]) == 200
+    assert batch_status([failed, failed]) == 422
+
+
+async def test_batch_counts_and_logs_items_not_requests(client, capsys):
+    from tantive.telemetry import configure_logging
+
+    configure_logging(False)
+
+    def decisions(text: str) -> float:
+        return sum(
+            float(line.rsplit(" ", 1)[1]) for line in text.splitlines() if line.startswith("tantive_decisions_total{")
+        )
+
+    before = decisions((await client.get("/metrics")).text)
+    capsys.readouterr()
+    r = await client.post("/classify", json={"input": ["a", "", "b", "c"]})
+    assert r.status_code == 200
+    assert capsys.readouterr().out.count('"event": "decision"') == 3
+    assert decisions((await client.get("/metrics")).text) == before + 3
+
+
 @pytest.fixture
 def otlp_endpoint():
     """A closed port as OTLP endpoint; the tracing provider is shut down after the test so that nothing keeps
