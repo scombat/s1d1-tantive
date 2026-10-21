@@ -5,7 +5,7 @@ services:
     name: s1d1-tantive
     runtime: image
     image:
-      url: ghcr.io/scombat/s1d1-tantive:0.4.0-tiny-onnx-int8
+      url: ghcr.io/scombat/s1d1-tantive:0.6.0-tiny-onnx-int8
     plan: free
     healthCheckPath: /ready
     # pushes to the repository must not redeploy every copy made with the button

@@ -11,7 +11,7 @@ one if its GitHub app is installed on it). Checked on render.com/docs on 2026-10
 
 ## Facts
 
-- Image: `ghcr.io/scombat/s1d1-tantive:0.4.0-tiny-onnx-int8`
+- Image: `ghcr.io/scombat/s1d1-tantive:0.6.0-tiny-onnx-int8`
 - RAM: 512 MiB (Free plan, checked 2026-10-21)
 - Status: needs public repository
 - Still to do (you): make the repository public; nothing else is needed, the images are already public.
@@ -21,13 +21,13 @@ one if its GitHub app is installed on it). Checked on render.com/docs on 2026-10
 Render's Free web service has **0.1 CPU and 512 MB of RAM** (compute-plans, 2026-10-21), sleeps after 15 minutes
 without traffic and takes about a minute to wake, gets 750 instance hours a month, and has an ephemeral disk
 (free page). The `tiny` variant is the only one that fits, and it is tight: it uses about 450 MiB once loaded
-(measured locally on the 0.4.0 image), so the margin is small and 0.1 CPU makes it slow. The docs say nothing that
+(measured locally on the 0.4.0 image, identical service in 0.6.0), so the margin is small and 0.1 CPU makes it slow. The docs say nothing that
 forbids an image-backed service on the Free plan, but the first deployment is the real test. To run `small` (1 GiB)
 or `full` (2 GiB) choose the `1c-2g` plan (1 CPU, 2 GB) and change the image tag and `plan` together:
 
 ```yaml
     image:
-      url: ghcr.io/scombat/s1d1-tantive:0.4.0-small-onnx-int8
+      url: ghcr.io/scombat/s1d1-tantive:0.6.0-small-onnx-int8
     plan: 1c-2g
 ```
 
@@ -44,5 +44,5 @@ or `full` (2 GiB) choose the `1c-2g` plan (1 CPU, 2 GB) and change the image tag
 
 ## Deploy by hand
 
-New → Web Service → Existing Image → `ghcr.io/scombat/s1d1-tantive:0.4.0-tiny-onnx-int8`, instance type Free,
+New → Web Service → Existing Image → `ghcr.io/scombat/s1d1-tantive:0.6.0-tiny-onnx-int8`, instance type Free,
 Advanced → Health Check Path `/ready`, and the environment variables above.

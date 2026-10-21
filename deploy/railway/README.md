@@ -10,7 +10,7 @@ the code being the one on the template's page.
 
 ## Facts
 
-- Image: `ghcr.io/scombat/s1d1-tantive:0.4.0-small-onnx-int8`
+- Image: `ghcr.io/scombat/s1d1-tantive:0.6.0-small-onnx-int8`
 - RAM: 1024 MiB (Trial plan, the most a service gets on it; checked 2026-10-21)
 - Status: needs a one-time setup
 - Still to do (you): the template is not created yet, so the button below has no id; create it once (below) and
@@ -32,7 +32,7 @@ In the Railway dashboard: workspace settings → Templates → **New Template** 
 
 | field | value |
 |---|---|
-| Image | `ghcr.io/scombat/s1d1-tantive:0.4.0-small-onnx-int8` |
+| Image | `ghcr.io/scombat/s1d1-tantive:0.6.0-small-onnx-int8` |
 | Variable `PORT` | `8788` (Railway routes public traffic to `PORT`; the service listens on 8788 by default) |
 | Variable `S1D1_TIERS` | `TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.0` (must match the tier names your gateway sends) |
 | Variable `S1D1_FORMATS` | `systemone,decisions,classify` |

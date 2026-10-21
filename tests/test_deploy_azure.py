@@ -40,7 +40,7 @@ def test_parameters_names_types_defaults():
         "name": ("string", "s1d1-tantive"),
         "location": ("string", "[resourceGroup().location]"),
         "environmentId": ("string", None),
-        "image": ("string", "ghcr.io/scombat/s1d1-tantive:0.3.1-full-onnx-int8"),
+        "image": ("string", "ghcr.io/scombat/s1d1-tantive:0.6.0-full-onnx-int8"),
         "registryServer": ("string", "ghcr.io"),
         "registryUsername": ("string", None),
         "registryPassword": ("securestring", None),

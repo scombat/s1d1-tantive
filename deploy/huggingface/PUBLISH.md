@@ -15,7 +15,7 @@ Team or Enterprise for an organisation). The hardware it then runs on, CPU Basic
 
 ## Facts
 
-- Image: `ghcr.io/scombat/s1d1-tantive:0.4.0-full-onnx-int8`
+- Image: `ghcr.io/scombat/s1d1-tantive:0.6.0-full-onnx-int8`
 - RAM: 16384 MiB (CPU Basic, free, checked 2026-10-21)
 - Status: needs a one-time setup
 - Still to do (you): publish the Space below (the duplicate button is a 404 until it exists); duplicating a Docker
@@ -48,7 +48,7 @@ The key is set before the first upload on purpose: the Space is public, and the 
 
 ## Upgrading
 
-Edit the tag in the `Dockerfile` (`0.4.0-full-onnx-int8` → the new release) and upload it again.
+Edit the tag in the `Dockerfile` (`0.6.0-full-onnx-int8` → the new release) and upload it again.
 
 ## Button
 
