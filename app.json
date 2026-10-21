@@ -1,0 +1,33 @@
+{
+  "name": "s1d1-tantive",
+  "description": "The s1d1 router as a decision service for LiteLLM and other gateways (runs the published image).",
+  "repository": "https://github.com/scombat/s1d1-tantive",
+  "stack": "container",
+  "env": {
+    "S1D1_TIERS": {
+      "description": "Tier names and upper bounds your gateway sends, e.g. TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.0"
+    },
+    "S1D1_FORMATS": {
+      "description": "Adapters to mount.",
+      "value": "systemone,decisions,classify"
+    },
+    "S1D1_DEADLINE_MS": {
+      "description": "Shed a request when its expected wait exceeds this many milliseconds.",
+      "value": "800"
+    },
+    "OTEL_EXPORTER_OTLP_ENDPOINT": {
+      "description": "Optional: OpenTelemetry collector URL for traces and metrics. Leave empty for no export.",
+      "required": false
+    },
+    "S1D1_API_KEY": {
+      "description": "Bearer key for the adapter routes (the app URL is public), generated for you.",
+      "generator": "secret"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "standard-2x"
+    }
+  }
+}

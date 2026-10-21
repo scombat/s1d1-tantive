@@ -1,0 +1,5 @@
+# Heroku builds the container from this folder's Dockerfile (a single FROM on the published image); see
+# deploy/heroku/README.md. No run section: the Dockerfile ENTRYPOINT maps Heroku's $PORT to the service.
+build:
+  docker:
+    web: deploy/heroku/Dockerfile

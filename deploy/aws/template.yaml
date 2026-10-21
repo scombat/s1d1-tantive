@@ -1,0 +1,238 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  s1d1-tantive on ECS Fargate: one service that runs the published image behind a security group, with logs in
+  CloudWatch. No load balancer: put an Application Load Balancer or a service mesh in front for production.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC of the service.
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets of the tasks, in the VPC above (at least one).
+  AssignPublicIp:
+    Type: String
+    AllowedValues: [ENABLED, DISABLED]
+    Description: >-
+      ENABLED gives each task a public IP, which public subnets need to pull the image from ghcr.io. DISABLED is for
+      private subnets with a NAT gateway (or a registry mirror) for the pull.
+  IngressCidr:
+    Type: String
+    AllowedPattern: '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}$'
+    Description: >-
+      Who may reach port 8788, as an IPv4 CIDR. Use the VPC's CIDR to keep the service inside it; 0.0.0.0/0 opens it
+      to the internet, then give ApiKey.
+  Image:
+    Type: String
+    Default: ghcr.io/scombat/s1d1-tantive:0.4.0-full-onnx-int8
+    Description: Image to run, one per model variant. Cpu and Memory must fit it (full 2 GiB, small 1 GiB, tiny 512 MiB).
+  RegistryUsername:
+    Type: String
+    Default: ""
+    AllowedPattern: '^[^"\\]*$'
+    Description: Registry user, only for a private image or mirror. Empty = pull without credentials (the GHCR images are public).
+  RegistryPassword:
+    Type: String
+    Default: ""
+    NoEcho: true
+    AllowedPattern: '^[^"\\]*$'
+    Description: Registry password or token with read:packages, only for a private image. Stored in Secrets Manager.
+  Tiers:
+    Type: String
+    Description: >-
+      S1D1_TIERS, for example TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.0. It must match the tier names the
+      gateway sends, otherwise the service answers 422.
+  Formats:
+    Type: String
+    Default: systemone,decisions,classify
+    Description: S1D1_FORMATS, the adapters to mount.
+  DeadlineMs:
+    Type: Number
+    Default: 800
+    MinValue: 1
+    Description: S1D1_DEADLINE_MS, shed a request when its expected wait exceeds this.
+  ApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: >-
+      S1D1_API_KEY, kept in Secrets Manager and injected as a container secret. Empty = no key and no secret. Give one
+      whenever IngressCidr is wider than the VPC.
+  OtlpEndpoint:
+    Type: String
+    Default: ""
+    Description: >-
+      OTEL_EXPORTER_OTLP_ENDPOINT, optional: an OpenTelemetry collector for traces and metrics. Empty = no export.
+  Cpu:
+    Type: String
+    Default: "2048"
+    AllowedValues: ["512", "1024", "2048", "4096"]
+    Description: Task CPU units. 2048 with 4096 MiB suits full; 1024 with 2048 MiB suits small.
+  Memory:
+    Type: String
+    Default: "4096"
+    Description: Task memory in MiB, one of the values Fargate allows for the CPU (1024 CPU takes 2048 to 8192).
+  DesiredCount:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    Description: Number of tasks.
+
+Conditions:
+  HasRegistryCredentials: !And
+    - !Not [!Equals [!Ref RegistryUsername, ""]]
+    - !Not [!Equals [!Ref RegistryPassword, ""]]
+  HasApiKey: !Not [!Equals [!Ref ApiKey, ""]]
+  HasOtlpEndpoint: !Not [!Equals [!Ref OtlpEndpoint, ""]]
+  HasSecrets: !Or [!Condition HasRegistryCredentials, !Condition HasApiKey]
+
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${AWS::StackName}"
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${AWS::StackName}"
+      RetentionInDays: 30
+
+  RegistrySecret:
+    Type: AWS::SecretsManager::Secret
+    Condition: HasRegistryCredentials
+    Properties:
+      Description: Registry credentials for pulling the s1d1-tantive image
+      SecretString: !Sub '{"username":"${RegistryUsername}","password":"${RegistryPassword}"}'
+
+  ApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Condition: HasApiKey
+    Properties:
+      Description: S1D1_API_KEY of the s1d1-tantive service
+      SecretString: !Ref ApiKey
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies: !If
+        - HasSecrets
+        - - PolicyName: read-its-own-secrets
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: secretsmanager:GetSecretValue
+                  Resource:
+                    - !If [HasRegistryCredentials, !Ref RegistrySecret, !Ref "AWS::NoValue"]
+                    - !If [HasApiKey, !Ref ApiKeySecret, !Ref "AWS::NoValue"]
+        - !Ref "AWS::NoValue"
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${AWS::StackName}"
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: tantive
+          Image: !Ref Image
+          Essential: true
+          ReadonlyRootFilesystem: true
+          RepositoryCredentials: !If
+            - HasRegistryCredentials
+            - CredentialsParameter: !Ref RegistrySecret
+            - !Ref "AWS::NoValue"
+          PortMappings:
+            - ContainerPort: 8788
+              Protocol: tcp
+          Environment:
+            - Name: S1D1_TIERS
+              Value: !Ref Tiers
+            - Name: S1D1_FORMATS
+              Value: !Ref Formats
+            - Name: S1D1_DEADLINE_MS
+              Value: !Ref DeadlineMs
+            - !If
+              - HasOtlpEndpoint
+              - Name: OTEL_EXPORTER_OTLP_ENDPOINT
+                Value: !Ref OtlpEndpoint
+              - !Ref "AWS::NoValue"
+          Secrets: !If
+            - HasApiKey
+            - - Name: S1D1_API_KEY
+                ValueFrom: !Ref ApiKeySecret
+            - !Ref "AWS::NoValue"
+          HealthCheck:
+            # no curl in the image: urllib does the probe, on the readiness path
+            Command:
+              - CMD
+              - python
+              - -c
+              - "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8788/ready').status == 200 else 1)"
+            Interval: 10
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: tantive
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: s1d1-tantive service port
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8788
+          ToPort: 8788
+          CidrIp: !Ref IngressCidr
+          Description: s1d1-tantive API
+      # egress stays open (the default): the task pulls its image from ghcr.io and writes its logs to CloudWatch
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub "${AWS::StackName}"
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: !Ref AssignPublicIp
+          SecurityGroups: [!Ref SecurityGroup]
+          Subnets: !Ref SubnetIds
+
+Outputs:
+  Cluster:
+    Description: ECS cluster name
+    Value: !Ref Cluster
+  Service:
+    Description: ECS service name
+    Value: !GetAtt Service.Name
+  SecurityGroup:
+    Description: Security group of the tasks (allow it in your load balancer or client rules)
+    Value: !Ref SecurityGroup

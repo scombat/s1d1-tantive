@@ -1,0 +1,29 @@
+# Render Blueprint for s1d1-tantive: one web service that runs the published image (docs: deploy/render/README.md).
+# The free plan has 512 MB of RAM, so the image is the tiny variant; for the small or full variant pick a bigger plan.
+services:
+  - type: web
+    name: s1d1-tantive
+    runtime: image
+    image:
+      url: ghcr.io/scombat/s1d1-tantive:0.4.0-tiny-onnx-int8
+    plan: free
+    healthCheckPath: /ready
+    # pushes to the repository must not redeploy every copy made with the button
+    autoDeployTrigger: "off"
+    envVars:
+      # Render routes traffic to PORT (10000 by default); the service listens on 8788
+      - key: PORT
+        value: 8788
+      # asked for at creation: must match the tier names your gateway sends
+      - key: S1D1_TIERS
+        sync: false
+      - key: S1D1_FORMATS
+        value: systemone,decisions,classify
+      - key: S1D1_DEADLINE_MS
+        value: 800
+      # optional: an OpenTelemetry collector for traces and metrics; empty = no export
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: ""
+      # a free web service always has a public URL: Render generates a random key, shown in the dashboard
+      - key: S1D1_API_KEY
+        generateValue: true

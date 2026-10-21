@@ -1,0 +1,221 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "s1d1-tantive as an Azure Container App in an existing Container Apps environment. The image is pulled from GHCR with the credentials given below; nothing is created besides the container app."
+  },
+  "parameters": {
+    "name": {
+      "type": "string",
+      "defaultValue": "s1d1-tantive",
+      "metadata": {
+        "description": "Name of the container app (lowercase letters, digits and hyphens)."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Region of the container app; it must be the region of the environment."
+      }
+    },
+    "environmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource id of an existing Container Apps environment, e.g. /subscriptions/<id>/resourceGroups/<rg>/providers/Microsoft.App/managedEnvironments/<name>."
+      }
+    },
+    "image": {
+      "type": "string",
+      "defaultValue": "ghcr.io/scombat/s1d1-tantive:0.3.1-full-onnx-int8",
+      "metadata": {
+        "description": "Image to run. One image per model variant: the tag ends with the variant (full-onnx-int8, small-onnx-int8, ...)."
+      }
+    },
+    "registryServer": {
+      "type": "string",
+      "defaultValue": "ghcr.io",
+      "metadata": {
+        "description": "Registry that holds the image."
+      }
+    },
+    "registryUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Registry user name (for GHCR, a GitHub user)."
+      }
+    },
+    "registryPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Registry password (for GHCR, a token with read:packages). Stored as a container app secret; never output."
+      }
+    },
+    "ingressExternal": {
+      "type": "bool",
+      "metadata": {
+        "description": "Where the service is reachable. false = internal: only from inside the environment (its virtual network), the usual choice behind LiteLLM. true = external: public on the internet, then set apiKey. There is no default: choose."
+      }
+    },
+    "cpu": {
+      "type": "string",
+      "defaultValue": "2.0",
+      "metadata": {
+        "description": "vCPU per replica as a decimal string. 2.0 with 4Gi suits the full variant; 1.0 with 2Gi suits small."
+      }
+    },
+    "memory": {
+      "type": "string",
+      "defaultValue": "4Gi",
+      "metadata": {
+        "description": "Memory per replica. It must be a combination Container Apps accepts for the cpu (2.0 with 4Gi, 1.0 with 2Gi)."
+      }
+    },
+    "minReplicas": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Minimum replicas. 1 keeps one replica warm: the model loads in a few seconds, so scale-from-zero would add that to the first request."
+      }
+    },
+    "maxReplicas": {
+      "type": "int",
+      "defaultValue": 3,
+      "metadata": {
+        "description": "Maximum replicas."
+      }
+    },
+    "concurrentRequests": {
+      "type": "int",
+      "defaultValue": 8,
+      "metadata": {
+        "description": "Concurrent HTTP requests per replica above which a replica is added."
+      }
+    },
+    "tiers": {
+      "type": "string",
+      "metadata": {
+        "description": "S1D1_TIERS: the tiers and their upper bounds, e.g. TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.0. It must match the tier names LiteLLM sends, otherwise the service answers 422. There is no default: choose."
+      }
+    },
+    "formats": {
+      "type": "string",
+      "defaultValue": "systemone,decisions,classify",
+      "metadata": {
+        "description": "S1D1_FORMATS: the API formats to serve, comma-separated."
+      }
+    },
+    "deadlineMs": {
+      "type": "int",
+      "defaultValue": 800,
+      "metadata": {
+        "description": "S1D1_DEADLINE_MS: a request that cannot be answered within this time is shed with a 503."
+      }
+    },
+    "apiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "S1D1_API_KEY: the key callers must present. Empty = no key and no secret is created (fine for internal ingress; set it for external)."
+      }
+    },
+    "otlpEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "OTEL_EXPORTER_OTLP_ENDPOINT: OpenTelemetry collector for traces and metrics. Empty = no export."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2026-07-01",
+      "name": "[parameters('name')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "environmentId": "[parameters('environmentId')]",
+        "configuration": {
+          "ingress": {
+            "external": "[parameters('ingressExternal')]",
+            "targetPort": 8788,
+            "transport": "http"
+          },
+          "secrets": "[concat(createArray(createObject('name', 'ghcr-password', 'value', parameters('registryPassword'))), if(empty(parameters('apiKey')), createArray(), createArray(createObject('name', 's1d1-api-key', 'value', parameters('apiKey')))))]",
+          "registries": [
+            {
+              "server": "[parameters('registryServer')]",
+              "username": "[parameters('registryUsername')]",
+              "passwordSecretRef": "ghcr-password"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "tantive",
+              "image": "[parameters('image')]",
+              "resources": {
+                "cpu": "[json(parameters('cpu'))]",
+                "memory": "[parameters('memory')]"
+              },
+              "env": "[concat(createArray(createObject('name', 'S1D1_TIERS', 'value', parameters('tiers')), createObject('name', 'S1D1_FORMATS', 'value', parameters('formats')), createObject('name', 'S1D1_DEADLINE_MS', 'value', string(parameters('deadlineMs')))), if(empty(parameters('apiKey')), createArray(), createArray(createObject('name', 'S1D1_API_KEY', 'secretRef', 's1d1-api-key'))), if(empty(parameters('otlpEndpoint')), createArray(), createArray(createObject('name', 'OTEL_EXPORTER_OTLP_ENDPOINT', 'value', parameters('otlpEndpoint')))))]",
+              "probes": [
+                {
+                  "type": "Liveness",
+                  "httpGet": {
+                    "path": "/health",
+                    "port": 8788
+                  }
+                },
+                {
+                  "type": "Readiness",
+                  "httpGet": {
+                    "path": "/ready",
+                    "port": 8788
+                  }
+                },
+                {
+                  "type": "Startup",
+                  "httpGet": {
+                    "path": "/ready",
+                    "port": 8788
+                  },
+                  "failureThreshold": 6,
+                  "periodSeconds": 10
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": "[parameters('minReplicas')]",
+            "maxReplicas": "[parameters('maxReplicas')]",
+            "rules": [
+              {
+                "name": "http-concurrency",
+                "http": {
+                  "metadata": {
+                    "concurrentRequests": "[string(parameters('concurrentRequests'))]"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "fqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2026-07-01').configuration.ingress.fqdn]"
+    },
+    "apiBase": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2026-07-01').configuration.ingress.fqdn)]"
+    }
+  }
+}
