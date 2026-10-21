@@ -3,6 +3,8 @@
 [![ci](https://github.com/scombat/s1d1-tantive/actions/workflows/ci.yml/badge.svg)](https://github.com/scombat/s1d1-tantive/actions/workflows/ci.yml) [![build](https://github.com/scombat/s1d1-tantive/actions/workflows/build.yml/badge.svg)](https://github.com/scombat/s1d1-tantive/actions/workflows/build.yml) [![release](https://img.shields.io/github/v/release/scombat/s1d1-tantive)](https://github.com/scombat/s1d1-tantive/releases) [![licence: BSL-1.1](https://img.shields.io/badge/licence-BSL--1.1-blue)](LICENSE) [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
 [![Model on Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Model-scombat%2Fs1d1--router-yellow)](https://huggingface.co/scombat/s1d1-router) [![Variants](https://img.shields.io/badge/%F0%9F%A4%97%20Variants-collection-yellow)](https://huggingface.co/collections/scombat/s1d1-router-6ad0f6b0a97a814b3e7f5b8d)
 
+<p align="center"><img src="assets/hero.svg" alt="s1d1-router: a prompt goes through one encoder pass and comes out as complexity, task and needs_tools; a policy maps them to a model and a reasoning effort" width="100%"></p>
+
 **s1d1** is a small multilingual model that reads a prompt once and returns a complexity score, a task (one of 19) and
 whether the prompt needs tools. Four ONNX int8 variants (`full`, `compact`, `small`, `tiny`) are on [the Hub](https://huggingface.co/scombat/s1d1-router).
 

@@ -34,6 +34,7 @@ SECTIONS = [
     "## LiteLLM",
     "## Licence",
 ]
+HERO = "assets/hero.svg"
 FENCE = re.compile(r"^```.*?^```", re.S | re.M)
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 SECRET = re.compile(r"ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN")
@@ -67,13 +68,21 @@ def test_readme_what_you_get_is_eight_to_ten_one_line_bullets():
     assert all(line.startswith("- ") and len(line) <= 160 for line in bullets), bullets
 
 
+def test_readme_shows_the_hero_after_the_badges():
+    head = "\n".join(lines(README)[:12])
+    assert f'<img src="{HERO}"' in head and 'width="100%"' in head
+    assert head.index(HERO) > head.index("huggingface.co/collections/")
+    svg = (ROOT / HERO).read_text()
+    assert "<script" not in svg and "http" not in svg.replace("http://www.w3.org", "")
+
+
 def test_readme_opens_with_badges_then_what_it_is():
     top = lines(README)
     assert top[0] == "# s1d1-tantive"
     first_block = next(i for i, line in enumerate(top) if line.startswith("## "))
     intro = "\n".join(top[1:first_block])
     assert intro.count("img.shields.io") + intro.count("slsa.dev") >= 6
-    paragraphs = [p for p in re.split(r"\n\s*\n", intro) if p.strip() and "img.shields.io" not in p]
+    paragraphs = [p for p in re.split(r"\n\s*\n", intro) if p.strip() and "img.shields.io" not in p and HERO not in p]
     assert len(paragraphs) == 2  # s1d1 the model, then this service
 
 

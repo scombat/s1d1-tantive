@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 720" width="1600" height="720" role="img" aria-labelledby="t d">
+  <title id="t">s1d1-router</title>
+  <desc id="d">A prompt goes through one small encoder in a single pass and comes out as three signals: complexity, task and needs_tools. A policy turns them into a model and a reasoning effort.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0f1f"/><stop offset="1" stop-color="#1b1740"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="gauge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2dd4bf"/><stop offset="0.5" stop-color="#a78bfa"/><stop offset="1" stop-color="#f472b6"/>
+    </linearGradient>
+    <pattern id="dots" width="32" height="32" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#ffffff" opacity="0.06"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8ea2d6"/>
+    </marker>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="14" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <style>
+    text { font-family: Inter, "Helvetica Neue", Arial, sans-serif; }
+    .mono { font-family: "SF Mono", Menlo, Consolas, monospace; }
+  </style>
+
+  <rect width="1600" height="720" fill="url(#bg)"/>
+  <rect width="1600" height="720" fill="url(#dots)"/>
+
+  <!-- title -->
+  <text x="80" y="120" font-size="64" font-weight="700" fill="#ffffff">s1d1-router</text>
+  <text x="80" y="168" font-size="27" fill="#a9b8e6">One pass. Three signals. The right model for every request.</text>
+
+  <!-- prompts -->
+  <g>
+    <rect x="80" y="250" width="380" height="64" rx="16" fill="#ffffff" fill-opacity="0.10" stroke="#ffffff" stroke-opacity="0.22"/>
+    <text x="104" y="289" font-size="19" fill="#eef2ff">Quelle est la capitale de l’Australie ?</text>
+    <rect x="80" y="334" width="380" height="64" rx="16" fill="#ffffff" fill-opacity="0.07" stroke="#ffffff" stroke-opacity="0.16"/>
+    <text x="104" y="373" font-size="19" fill="#eef2ff" fill-opacity="0.8">Refactor the parser and add tests</text>
+    <rect x="80" y="418" width="380" height="64" rx="16" fill="#ffffff" fill-opacity="0.045" stroke="#ffffff" stroke-opacity="0.10"/>
+    <text x="104" y="457" font-size="19" fill="#eef2ff" fill-opacity="0.55">论证这个不等式 …</text>
+    <text x="80" y="520" font-size="17" fill="#8ea2d6">first user message only · any language</text>
+  </g>
+
+  <!-- arrows in -->
+  <path d="M470 366 L536 366" stroke="#8ea2d6" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- router -->
+  <g filter="url(#glow)">
+    <rect x="540" y="250" width="340" height="270" rx="32" fill="url(#core)"/>
+  </g>
+  <rect x="540" y="250" width="340" height="270" rx="32" fill="none" stroke="#ffffff" stroke-opacity="0.35"/>
+  <text x="710" y="318" font-size="38" font-weight="700" fill="#ffffff" text-anchor="middle">router</text>
+  <text x="710" y="356" font-size="20" fill="#ffffff" fill-opacity="0.92" text-anchor="middle">mmBERT-base encoder</text>
+  <!-- little layered encoder motif -->
+  <g stroke="#ffffff" stroke-opacity="0.85" stroke-width="2.5" fill="none" stroke-linecap="round">
+    <path d="M610 410 H810"/><path d="M630 434 H790"/><path d="M650 458 H770"/>
+  </g>
+  <g fill="#ffffff"><circle cx="600" cy="410" r="5"/><circle cx="620" cy="434" r="5"/><circle cx="640" cy="458" r="5"/>
+    <circle cx="820" cy="410" r="5"/><circle cx="800" cy="434" r="5"/><circle cx="780" cy="458" r="5"/></g>
+  <text x="710" y="500" font-size="17" fill="#ffffff" fill-opacity="0.9" text-anchor="middle">307 M parameters · one forward pass</text>
+
+  <!-- arrows out -->
+  <path d="M890 300 L970 300" stroke="#8ea2d6" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M890 386 L970 386" stroke="#8ea2d6" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M890 472 L970 472" stroke="#8ea2d6" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- output 1: complexity -->
+  <rect x="980" y="250" width="540" height="100" rx="20" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.2"/>
+  <text x="1008" y="286" font-size="21" font-weight="600" fill="#ffffff" class="mono">complexity</text>
+  <text x="1492" y="286" font-size="17" fill="#a9b8e6" text-anchor="end">0.01 → 1.00</text>
+  <rect x="1008" y="308" width="484" height="12" rx="6" fill="url(#gauge)"/>
+  <circle cx="1203" cy="314" r="13" fill="#ffffff" stroke="#0a0f1f" stroke-width="4"/>
+  <text x="1008" y="342" font-size="14" fill="#8ea2d6">trivial</text>
+  <text x="1203" y="342" font-size="14" fill="#8ea2d6" text-anchor="middle">medium</text>
+  <text x="1492" y="342" font-size="14" fill="#8ea2d6" text-anchor="end">expert</text>
+
+  <!-- output 2: task -->
+  <rect x="980" y="364" width="540" height="100" rx="20" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.2"/>
+  <text x="1008" y="400" font-size="21" font-weight="600" fill="#ffffff" class="mono">task</text>
+  <text x="1492" y="400" font-size="17" fill="#a9b8e6" text-anchor="end">19 classes</text>
+  <g font-size="16" class="mono">
+    <rect x="1008" y="416" width="170" height="32" rx="16" fill="#14b8a6" fill-opacity="0.9"/><text x="1093" y="438" fill="#04201d" text-anchor="middle" font-weight="600">coding_debugging</text>
+    <rect x="1190" y="416" width="74" height="32" rx="16" fill="#ffffff" fill-opacity="0.14"/><text x="1227" y="438" fill="#dfe6ff" text-anchor="middle">math</text>
+    <rect x="1276" y="416" width="92" height="32" rx="16" fill="#ffffff" fill-opacity="0.14"/><text x="1322" y="438" fill="#dfe6ff" text-anchor="middle">writing</text>
+    <rect x="1380" y="416" width="60" height="32" rx="16" fill="#ffffff" fill-opacity="0.14"/><text x="1410" y="438" fill="#dfe6ff" text-anchor="middle">+16</text>
+  </g>
+
+  <!-- output 3: needs_tools -->
+  <rect x="980" y="478" width="540" height="100" rx="20" fill="#ffffff" fill-opacity="0.08" stroke="#ffffff" stroke-opacity="0.2"/>
+  <text x="1008" y="514" font-size="21" font-weight="600" fill="#ffffff" class="mono">needs_tools</text>
+  <text x="1492" y="514" font-size="17" fill="#a9b8e6" text-anchor="end">yes / no</text>
+  <rect x="1008" y="530" width="84" height="32" rx="16" fill="#f472b6"/><circle cx="1076" cy="546" r="12" fill="#ffffff"/>
+  <text x="1108" y="553" font-size="18" fill="#eef2ff">files, shell, web, live data</text>
+
+  <!-- policy ladder -->
+  <text x="80" y="652" font-size="19" fill="#a9b8e6">your policy turns them into a model and a reasoning effort</text>
+  <g font-size="19" font-weight="600" text-anchor="middle">
+    <rect x="980" y="620" width="120" height="48" rx="24" fill="#2dd4bf" fill-opacity="0.25" stroke="#2dd4bf"/><text x="1040" y="651" fill="#c9fff6">small</text>
+    <rect x="1112" y="620" width="120" height="48" rx="24" fill="#60a5fa" fill-opacity="0.25" stroke="#60a5fa"/><text x="1172" y="651" fill="#d6e8ff">mid</text>
+    <rect x="1244" y="620" width="120" height="48" rx="24" fill="#a78bfa" fill-opacity="0.28" stroke="#a78bfa"/><text x="1304" y="651" fill="#e9e1ff">large</text>
+    <rect x="1376" y="620" width="144" height="48" rx="24" fill="#f472b6" fill-opacity="0.3" stroke="#f472b6"/><text x="1448" y="651" fill="#ffe0f0">frontier</text>
+  </g>
+</svg>
