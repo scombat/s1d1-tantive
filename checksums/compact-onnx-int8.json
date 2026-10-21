@@ -1,7 +1,7 @@
 {
   "repo": "scombat/s1d1-router-6src-compact-onnx-int8",
-  "revision": "d6c3035a8612d6e632351fa07aecc0573e2954ca",
-  "fetched": "2026-10-20",
+  "revision": "18c6801bd15a9fbf3c68c84d093ec1dd91d2c4b5",
+  "fetched": "2026-10-21",
   "files": {
     "LICENSE": {
       "git_sha1": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
@@ -28,8 +28,8 @@
       "size": 682
     },
     "variant.json": {
-      "git_sha1": "2c869dd0f65bc6fdb6feca5fdefc2afc3ca2d901",
-      "size": 126
+      "git_sha1": "798579034414662c5e9816e2e724ce0d33897fd1",
+      "size": 260
     },
     "vocab_map.npy": {
       "sha256": "3466512656f2b9ca115751505e310b799aa7a2028bf36d43e6b06413b608e104",
