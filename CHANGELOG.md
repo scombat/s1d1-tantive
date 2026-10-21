@@ -10,6 +10,7 @@
 - The licence parameters are now generic: `Licensed Work` is `s1d1-tantive` without a version, and the `Change Date` is
   four years from the date each version is first publicly distributed (the BSL 1.1 template wording). Licensor, Additional
   Use Grant and Change License are unchanged.
+- The `SECURITY.md` contact test is a plain test: the contact is filled, so its `xfail` marker goes.
 
 ## 0.7.0 — 2026-10-21
 

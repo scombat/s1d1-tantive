@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 GUIDES = sorted((ROOT / "docs").glob("*.md"))
@@ -159,7 +157,6 @@ def test_security_md_exists_and_is_linked_from_readme():
     assert "Security: see [SECURITY.md](SECURITY.md)" in README.read_text()
 
 
-@pytest.mark.xfail(strict=False, reason="the user fills the contact before the repository goes public")
 def test_security_md_has_no_placeholder():
     assert "<security contact>" not in SECURITY.read_text()
 
