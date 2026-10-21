@@ -66,6 +66,7 @@ def router(_app: FastAPI) -> APIRouter:
             "data": data,
             "usage": {"prompt_tokens": tokens, "total_tokens": tokens, "completion_tokens": 0, "pieces": pieces},
         }
-        return JSONResponse(body_out, status_code=batch_status(items))
+        status, headers = batch_status(items)
+        return JSONResponse(body_out, status_code=status, headers=headers)
 
     return r

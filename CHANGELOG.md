@@ -13,8 +13,8 @@
 - The `SECURITY.md` contact test is a plain test: the contact is filled, so its `xfail` marker goes.
 - Batches answer per item: `POST /v1/systemone/batch`, and `/classify` and `/predict` given a list, answer each valid
   item as before and put `{"error": {"message", "type"}}` in the slot of an item the single route would refuse (blank or
-  too long text, shed), instead of failing the whole batch. 200 when at least one item succeeded, 422 when every item
-  failed; body-level errors are unchanged. Metrics and `decision` lines count the items that ran. Guide: the Batch
+  too long text, shed), instead of failing the whole batch. 200 when at least one item succeeded, 503 + `Retry-After` when
+  every item was shed, 422 when every item failed otherwise; body-level errors are unchanged. Metrics and `decision` lines count the items that ran. Guide: the Batch
   section of `docs/formats.md`.
 - chat-completions refuses `"stream": true` with a 400 in the usual error shape instead of ignoring it: this endpoint
   does not stream, a classification is one response.

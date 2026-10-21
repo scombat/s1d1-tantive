@@ -108,9 +108,9 @@ curl -s localhost:8788/predict -H 'content-type: application/json' -d '{"inputs"
 ## Batch
 
 `POST /v1/systemone/batch` (`states`, answered as `{"results": [...]}`), `/classify` and `/predict` given a list answer
-per item: a valid item as on its own, a refused one (blank or too long text, shed) as `{"error": {...}}` in its slot,
-with its `index` in `/classify`. 200 when an item succeeded, 422 when all failed. Limits: 32 items, 50 000 characters
-each, body 2 MiB; invalid JSON, more items, a bigger body or a question outside the catalogue refuse the whole request.
+per item: a valid item as on its own, a refused one (blank or too long text, shed) as `{"error": {...}}` in its slot, with
+its `index` in `/classify`. 200 when an item succeeded; 503 + `Retry-After` when every item was shed; 422 when all failed
+otherwise. Invalid JSON, too many items, an oversized body or an unknown question refuse the whole request (limits below).
 
 ```json
 {"results": [{"answers": {"tier": {"type": "choice", "choice": "LOW", ...}}, ...}, {"error": {"message": "no text to classify", "type": "invalid_request_error"}}]}

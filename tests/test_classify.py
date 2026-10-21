@@ -55,10 +55,10 @@ async def test_classify_every_input_failed_is_422(client):
     assert all("error" in d for d in r.json()["data"])
 
 
-async def test_classify_list_overloaded_fills_the_slots(client, overloaded_engine):
-    r = await client.post("/classify", json={"input": ["x"]})
-    assert r.status_code == 422
-    assert r.json()["data"][0]["error"]["type"] == "overloaded"
+async def test_classify_list_all_shed_is_503_with_retry_after(client, overloaded_engine):
+    r = await client.post("/classify", json={"input": ["x", "y"]})
+    assert r.status_code == 503 and r.headers["Retry-After"] == "1"
+    assert all(d["error"]["type"] == "overloaded" for d in r.json()["data"])
 
 
 async def test_classify_overloaded_503(client, overloaded_engine):

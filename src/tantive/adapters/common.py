@@ -115,9 +115,14 @@ def item_error(e: ApiError) -> dict:
     return error_body(e.status_code, str(e.detail))
 
 
-def batch_status(items: Sequence[Item]) -> int:
-    """200 when at least one item succeeded, 422 when every item failed."""
-    return 200 if any(isinstance(i, Classified) for i in items) else 422
+def batch_status(items: Sequence[Item]) -> tuple[int, dict[str, str] | None]:
+    """200 when at least one item succeeded; 503 + Retry-After when every item was shed (the client must back off,
+    not fix its request); 422 when every item failed for any other mix of reasons."""
+    if any(isinstance(i, Classified) for i in items):
+        return 200, None
+    if all(isinstance(i, ApiError) and i.status_code == 503 for i in items):
+        return 503, {"Retry-After": "1"}
+    return 422, None
 
 
 def answer(core: Core, outputs: Outputs, question: Question):

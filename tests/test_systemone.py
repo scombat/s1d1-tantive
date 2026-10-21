@@ -265,3 +265,17 @@ async def test_min_confidence_marks_noul_unevaluated(client):
     assert a["abstention"] == "unevaluated"  # a noul carries no confidence, so the gate cannot decide
     assert a["abstention_threshold"] == 0.5
     assert "low_confidence" not in a
+
+
+async def test_batch_all_shed_is_503_with_retry_after(client, overloaded_engine):
+    r = await client.post(
+        "/v1/systemone/batch", json={"states": ["a", "b"], "questions": tier_question("LOW", "HIGH")}
+    )
+    assert r.status_code == 503 and r.headers["Retry-After"] == "1"
+    assert [i["error"]["type"] for i in r.json()["results"]] == ["overloaded", "overloaded"]
+
+
+async def test_batch_all_blank_is_422_without_retry_after(client):
+    r = await client.post("/v1/systemone/batch", json={"states": [" ", ""], "questions": tier_question("LOW", "HIGH")})
+    assert r.status_code == 422 and "Retry-After" not in r.headers
+    assert all(i["error"]["type"] == "invalid_request_error" for i in r.json()["results"])

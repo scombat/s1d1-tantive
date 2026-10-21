@@ -108,14 +108,16 @@ def test_item_error_has_the_error_shape():
     }
 
 
-def test_batch_status_is_422_only_when_every_item_failed():
+def test_batch_status_200_then_503_when_all_shed_then_422():
     from tantive.adapters.common import Classified, batch_status
     from tantive.errors import ApiError
 
-    ok, failed = Classified("a", outputs(), 1.0), ApiError(400, "no text to classify")
-    assert batch_status([ok, failed]) == 200
-    assert batch_status([ok]) == 200
-    assert batch_status([failed, failed]) == 422
+    ok, blank, shed = Classified("a", outputs(), 1.0), ApiError(400, "no text to classify"), ApiError(503, "overloaded")
+    assert batch_status([ok, blank]) == (200, None)
+    assert batch_status([ok, shed]) == (200, None)
+    assert batch_status([shed, shed]) == (503, {"Retry-After": "1"})
+    assert batch_status([blank, blank]) == (422, None)
+    assert batch_status([blank, shed]) == (422, None)  # a mix: the client has something to fix
 
 
 async def test_batch_counts_and_logs_items_not_requests(client, capsys):

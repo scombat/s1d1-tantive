@@ -75,3 +75,10 @@ async def test_predict_off_by_default(client):
 
 async def test_predict_overloaded_503(client_predict, overloaded_engine):
     assert (await client_predict.post("/predict", json={"inputs": "x"})).status_code == 503
+
+
+async def test_predict_list_all_shed_is_503_with_retry_after(client_predict, overloaded_engine):
+    r = await client_predict.post("/predict", json={"inputs": ["x", "y"]})
+    assert r.status_code == 503 and r.headers["Retry-After"] == "1"
+    assert r.headers["X-S1D1-Pieces"] == "0"
+    assert all("error" in item for item in r.json())

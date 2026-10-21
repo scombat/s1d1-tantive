@@ -63,10 +63,11 @@ def router(_app: FastAPI) -> APIRouter:
             scored = [{"score": v, "label": label} for v, label in zip(values, LABELS, strict=True)]
             results.append(sorted(scored, key=lambda d: d["score"], reverse=True))
         pieces = sum(i.outputs.pieces for i in items if not isinstance(i, ApiError))
+        status, headers = batch_status(items)
         return JSONResponse(
             results if isinstance(body.inputs, list) else results[0],
-            status_code=batch_status(items),
-            headers={"X-S1D1-Pieces": str(pieces)},
+            status_code=status,
+            headers={"X-S1D1-Pieces": str(pieces), **(headers or {})},
         )
 
     return r

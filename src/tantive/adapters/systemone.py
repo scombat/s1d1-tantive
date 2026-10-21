@@ -174,6 +174,7 @@ def router(_app: FastAPI) -> APIRouter:
         for i in items:
             if isinstance(i, Classified):
                 record_state(core, i)
-        return JSONResponse({"results": results}, status_code=batch_status(items))
+        status, headers = batch_status(items)
+        return JSONResponse({"results": results}, status_code=status, headers=headers)
 
     return r
