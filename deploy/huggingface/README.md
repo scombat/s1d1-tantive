@@ -26,4 +26,4 @@ Settings are Space **variables** (and one **secret**): `S1D1_TIERS`, `S1D1_FORMA
 other deployment targets: <https://github.com/scombat/s1d1-tantive>.
 
 License: Business Source License 1.1 (BSL): non-commercial use is free, production use needs an agreement with the
-licensor, and the code becomes Apache-2.0 on 2030-10-19. See the LICENSE file of this Space.
+licensor, and each version becomes Apache-2.0 four years after it is first published. See the LICENSE file of this Space.

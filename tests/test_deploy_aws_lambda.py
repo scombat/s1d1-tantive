@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from tantive import __version__
+
 from .test_deploy_aws import FOLDER, Loader
 
 TEMPLATE = FOLDER / "template.lambda.yaml"
@@ -112,7 +114,7 @@ def test_outputs_carry_no_secret():
 
 def test_dockerfile_adds_the_web_adapter_to_our_image():
     text = DOCKERFILE.read_text()
-    assert re.search(r"^ARG BASE=ghcr\.io/scombat/s1d1-tantive:0\.6\.0-full-onnx-int8$", text, re.M)
+    assert re.search(rf"^ARG BASE=ghcr\.io/scombat/s1d1-tantive:{re.escape(__version__)}-full-onnx-int8$", text, re.M)
     assert re.search(r"^FROM \$\{BASE\}$", text, re.M)
     copy = "COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.1.0 /lambda-adapter /opt/extensions/lambda-adapter"
     assert copy in text.splitlines()

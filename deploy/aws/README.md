@@ -15,7 +15,7 @@ credentials, pricing).
 
 ## Facts
 
-- Image: `ghcr.io/scombat/s1d1-tantive:0.6.0-full-onnx-int8`
+- Image: `ghcr.io/scombat/s1d1-tantive:0.7.0-full-onnx-int8`
 - RAM: 4096 MiB (default `Memory`, with `Cpu` 2048)
 - Status: needs a template upload (S3)
 - Still to do (you): upload `template.yaml` to an S3 bucket you own, build the link below from its URL and put it
@@ -26,7 +26,7 @@ credentials, pricing).
 The Fargate pricing page (2026-10-21) shows no free tier: Linux/x86 in us-east-1 is $0.0405 per vCPU-hour and
 $0.00445 per GB-hour. The default task (2 vCPU, 4 GB, the `full` variant) costs about $0.10 an hour, about $72 for
 a month running all the time. `small` fits 1 vCPU and 2 GB (about $0.05 an hour, about $36 a month): set
-`Image` to `...:0.6.0-small-onnx-int8`, `Cpu` to `1024` and `Memory` to `2048`. `tiny` fits 512 MiB, but Fargate's
+`Image` to `...:0.7.0-small-onnx-int8`, `Cpu` to `1024` and `Memory` to `2048`. `tiny` fits 512 MiB, but Fargate's
 smallest CPU/memory pair that holds it is 256 CPU with 512 MiB, which leaves almost nothing (the service uses about
 450 MiB idle): use 512 CPU with 1024 MiB instead.
 
@@ -37,7 +37,7 @@ smallest CPU/memory pair that holds it is 256 CPU with 512 MiB, which leaves alm
 | `VpcId`, `SubnetIds` | **none** | where the tasks run |
 | `AssignPublicIp` | **none** (`ENABLED` or `DISABLED`) | `ENABLED` in public subnets (needed to pull from ghcr.io); `DISABLED` in private subnets that have a NAT gateway or a registry mirror |
 | `IngressCidr` | **none** | who may reach port 8788; the VPC CIDR keeps it inside, `0.0.0.0/0` publishes it (then give `ApiKey`) |
-| `Image` | `ghcr.io/scombat/s1d1-tantive:0.6.0-full-onnx-int8` | image to run |
+| `Image` | `ghcr.io/scombat/s1d1-tantive:0.7.0-full-onnx-int8` | image to run |
 | `RegistryUsername`, `RegistryPassword` | empty | only for a private image or mirror; the password is `NoEcho` and goes to a Secrets Manager secret. The GHCR images are public, so they need no credentials |
 | `Tiers` | **none** | `S1D1_TIERS`; must match the tier names your gateway sends, otherwise the service answers 422 |
 | `Formats`, `DeadlineMs` | `systemone,decisions,classify`, 800 | `S1D1_FORMATS`, `S1D1_DEADLINE_MS` |

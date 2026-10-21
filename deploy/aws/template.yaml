@@ -24,7 +24,7 @@ Parameters:
       to the internet, then give ApiKey.
   Image:
     Type: String
-    Default: ghcr.io/scombat/s1d1-tantive:0.6.0-full-onnx-int8
+    Default: ghcr.io/scombat/s1d1-tantive:0.7.0-full-onnx-int8
     Description: Image to run, one per model variant. Cpu and Memory must fit it (full 2 GiB, small 1 GiB, tiny 512 MiB).
   RegistryUsername:
     Type: String

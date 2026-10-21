@@ -48,7 +48,7 @@ A button that opens a guide instead of the provider has one step left for you, d
 
 ```bash
 docker run --rm -p 8788:8788 -e S1D1_FORMATS=systemone,decisions,chat,classify,predict \
-  ghcr.io/scombat/s1d1-tantive:0.6.0-small-onnx-int8
+  ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8
 ```
 
 ```bash
@@ -91,7 +91,7 @@ cosign verify ghcr.io/scombat/s1d1-tantive:<version>-small-onnx-int8 \
 ```
 
 ```bash
-docker run --rm --entrypoint python ghcr.io/scombat/s1d1-tantive:0.6.0-small-onnx-int8 -m tantive.verify /model /model/checksums.json
+docker run --rm --entrypoint python ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8 -m tantive.verify /model /model/checksums.json
 ```
 
 The first checks the keyless signature (0.6.0 and later; `cosign.pub` verifies 0.5.0 and older), the second the weights; SLSA provenance too: [docs/verify.md](docs/verify.md).

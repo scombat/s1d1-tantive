@@ -11,6 +11,8 @@ from urllib.parse import unquote
 
 import pytest
 
+from tantive import __version__
+
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "deploy" / "azure" / "azuredeploy.json"
 RAW_URL = "https://raw.githubusercontent.com/scombat/s1d1-tantive/main/deploy/azure/azuredeploy.json"
@@ -40,7 +42,7 @@ def test_parameters_names_types_defaults():
         "name": ("string", "s1d1-tantive"),
         "location": ("string", "[resourceGroup().location]"),
         "environmentId": ("string", None),
-        "image": ("string", "ghcr.io/scombat/s1d1-tantive:0.6.0-full-onnx-int8"),
+        "image": ("string", f"ghcr.io/scombat/s1d1-tantive:{__version__}-full-onnx-int8"),
         "registryServer": ("string", "ghcr.io"),
         "registryUsername": ("string", None),
         "registryPassword": ("securestring", None),

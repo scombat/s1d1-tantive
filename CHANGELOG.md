@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Image references move to 0.7.0 in the README, the guides, the deployment templates and the Space files, so the templates
+  pull images with the capture. `CITATION.cff` drops its `version` and `date-released`: the citation names the repository,
+  the release page names the version.
+- The version is read from the package metadata: `tantive.__version__` comes from `pyproject.toml` through
+  `importlib.metadata`, the only place a release sets it.
+- The licence parameters are now generic: `Licensed Work` is `s1d1-tantive` without a version, and the `Change Date` is
+  four years from the date each version is first publicly distributed (the BSL 1.1 template wording). Licensor, Additional
+  Use Grant and Change License are unchanged.
+
 ## 0.7.0 — 2026-10-21
 
 - Capture of the classified prompts, off by default: `S1D1_CAPTURE_DIR` writes one JSON line per decision (prompt,

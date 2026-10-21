@@ -1,5 +1,5 @@
 # s1d1-tantive as one Cloud Run service. Cloud Run cannot pull from ghcr.io: copy the published image
-# (ghcr.io/scombat/s1d1-tantive:0.6.0-small-onnx-int8, or another variant) into your Artifact Registry and give that
+# (ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8, or another variant) into your Artifact Registry and give that
 # path as `image` (see README). Adapt: project_id, region, image, and cpu/memory for another variant.
 terraform {
   required_version = ">= 1.5"

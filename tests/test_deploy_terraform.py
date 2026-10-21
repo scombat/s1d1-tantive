@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from tantive import __version__
+
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = ROOT / "deploy"
 # the main.tf of each target, and the folder whose README "Facts" names the image it runs
@@ -67,7 +69,7 @@ def test_tiers_is_a_required_variable(target):
 def test_port_and_image_match_the_facts(target):
     text = main_tf(target)
     assert "8788" in text
-    assert facts_image(target) in text and ":0.6.0-" in facts_image(target)
+    assert facts_image(target) in text and f":{__version__}-" in facts_image(target)
 
 
 @pytest.mark.parametrize("target", IDS)
