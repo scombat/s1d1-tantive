@@ -153,3 +153,26 @@ def test_security_md_exists_and_is_linked_from_readme():
 @pytest.mark.xfail(strict=False, reason="the user fills the contact before the repository goes public")
 def test_security_md_has_no_placeholder():
     assert "<security contact>" not in SECURITY.read_text()
+
+
+LLMS = ROOT / "llms.txt"
+
+
+def test_llms_txt_follows_the_llmstxt_convention():
+    rows = lines(LLMS)
+    assert rows[0] == "# s1d1-tantive"
+    assert rows[2].startswith("> ")
+    heads = [r for r in rows if r.startswith("## ")]
+    assert heads[-1] == "## Optional"
+    assert "## How to choose" in heads
+
+
+def test_llms_txt_links_resolve_and_cover_the_guides():
+    text = LLMS.read_text()
+    targets = re.findall(r"\]\(([^)\s]+)\)", text)
+    for target in targets:
+        if not re.match(r"[a-z][a-z0-9+.-]*:", target):
+            assert (ROOT / target.split("#", 1)[0]).exists(), target
+    for guide in GUIDES:
+        assert guide.relative_to(ROOT).as_posix() in targets, guide.name
+    assert "docs/sizing.md" in text and "docs/use-cases.md" in text

@@ -1,0 +1,32 @@
+# s1d1-tantive
+
+> Decision service for LLM routers. It serves the s1d1 model (a complexity score, a task among 19 and a needs-tools flag, from one pass over the prompt) as System One, OpenAI Decisions, chat-completions, vLLM `/classify` and TEI `/predict`. FastAPI and ONNX Runtime on CPU; one signed multi-arch image per variant (`full`, `compact`, `small`, `tiny`).
+
+## How to choose
+
+- Variant: `small` by default, `full` for the largest model, `tiny` for 512 MiB hosts.
+- Formats: `decisions` for LiteLLM 1.106+, `chat` for older LiteLLM, `classify` or `predict` for other clients (`S1D1_FORMATS`).
+- Target: Azure, AWS, Cloud Run, Heroku, Render, Railway or a Hugging Face Space under `deploy/`; Docker anywhere else.
+- Replicas: 3 at least; `1000 / cost_ms` requests per second each, with `cost_ms = fixed_ms + per_token_ms × tokens`.
+- Deadline: `S1D1_DEADLINE_MS` below the LiteLLM classifier timeout (1000 ms), above the cost of a 1 024-token prompt.
+- Long prompts: keep `head_tail`; `chunks` costs about 2.3 passes per long prompt for no measured gain.
+- Tiers: `S1D1_TIERS` must carry the tier names of the router.
+- Check: LiteLLM's `test_routing`, then the `ready` line of the logs (`predicted_ms_1024`, `capacity_warning`).
+- The calculation and two worked examples: [sizing](docs/sizing.md). Six full configurations: [use cases](docs/use-cases.md).
+
+## Guides
+
+- [Getting started](docs/getting-started.md): run the image, read `/info`, make a first call on each format.
+- [LiteLLM](docs/litellm.md): register the classifier and the Auto Router, by the GUI or `curl`, and test the routing.
+- [Formats](docs/formats.md): request and response of System One, Decisions, chat-completions, `/classify` and `/predict`.
+- [Configuration](docs/configuration.md): every environment variable, warm-up, load shedding and metrics.
+- [Sizing](docs/sizing.md): the cost model, replicas, memory, deadline, with worked examples.
+- [Use cases](docs/use-cases.md): six ready-made configurations, from a pilot to a closed network.
+- [Verify the image](docs/verify.md): signature, SLSA provenance and weights checksums.
+
+## Optional
+
+- [Deploy guides](deploy/): one folder per target, same image and variables everywhere.
+- [Maintainers' notes](MAINTAINERS.md): develop, release, add a format or a target.
+- [Security policy](SECURITY.md): supported versions and how to report a vulnerability.
+- [Changelog](CHANGELOG.md): what changed in each release.
