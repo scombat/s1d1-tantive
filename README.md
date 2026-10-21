@@ -36,6 +36,7 @@ A button that opens a guide instead of the provider has one step left for you, d
 - [LiteLLM](docs/litellm.md): the Auto Router, by the GUI and by `curl`
 - [Formats](docs/formats.md): System One, Decisions, chat, `/classify`, `/predict`
 - [Configuration](docs/configuration.md): variables, warm-up, shedding, metrics
+- [Sizing](docs/sizing.md): how many replicas, how much memory, which deadline
 - [Verify the image](docs/verify.md): signature, provenance, weights
 - Deploy guides: [`deploy/`](deploy/); release and contribution notes: [MAINTAINERS.md](MAINTAINERS.md); [CHANGELOG.md](CHANGELOG.md)
 
