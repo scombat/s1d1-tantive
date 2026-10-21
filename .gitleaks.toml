@@ -9,6 +9,7 @@ description = "cosign.pub is a PUBLIC key, committed on purpose so images up to 
 paths = ['''^cosign\.pub$''']
 
 [[allowlists]]
-description = "Terraform examples reference the input variable `var.s1d1_api_key`; it is a name, not a value (a literal key next to it would still be caught)"
-regexTarget = "line"
-regexes = ['''var\.s1d1_api_key''']
+description = "Terraform examples under deploy/ reference the input variable `var.s1d1_api_key`; only a match whose value is exactly that reference is allowed, and only in those files (a literal key on the same line, or anywhere else, is still reported)"
+paths = ['''^deploy/[^/]+/terraform/.*\.tf$''']
+regexTarget = "match"
+regexes = ['''var\.s1d1_api_key\s*[,}]?\s*$''']
