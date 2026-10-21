@@ -126,7 +126,7 @@ def test_no_secret_literals():
 
 def test_badges_target_existing_workflows():
     badges = re.findall(r"actions/workflows/([\w.-]+?)/badge\.svg", README.read_text())
-    assert sorted(badges) == ["build.yml", "ci.yml"]
+    assert sorted(badges) == ["build.yml", "ci.yml", "image.yml"]
     for name in badges:
         assert (ROOT / ".github/workflows" / name).is_file(), name
 
