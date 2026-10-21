@@ -51,7 +51,7 @@ Parameters:
   InvokerSourceArn:
     Type: String
     Default: ""
-    Description: ARN of that ALB target group or API, to limit the permission to it. Empty = any source of the principal.
+    Description: ARN of that ALB target group or API; the permission is limited to it. Required with InvokerPrincipal.
   Tiers:
     Type: String
     Description: >-
@@ -78,12 +78,19 @@ Parameters:
     Default: ""
     Description: OTEL_EXPORTER_OTLP_ENDPOINT, optional. Empty = no export.
 
+# A service principal without a source would let any ALB or API of any account invoke the function (confused deputy).
+Rules:
+  InvokerNeedsASource:
+    RuleCondition: !Not [!Equals [!Ref InvokerPrincipal, ""]]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref InvokerSourceArn, ""]]
+        AssertDescription: InvokerSourceArn is required when InvokerPrincipal is set.
+
 Conditions:
   HasProvisioned: !Not [!Equals [!Ref ProvisionedConcurrency, 0]]
   HasFunctionUrl: !Not [!Equals [!Ref UrlAuthType, DISABLED]]
   UrlIsPublic: !Equals [!Ref UrlAuthType, NONE]
   HasInvoker: !Not [!Equals [!Ref InvokerPrincipal, ""]]
-  HasInvokerSource: !Not [!Equals [!Ref InvokerSourceArn, ""]]
   HasApiKey: !Not [!Equals [!Ref ApiKey, ""]]
   HasOtlpEndpoint: !Not [!Equals [!Ref OtlpEndpoint, ""]]
 
@@ -179,7 +186,7 @@ Resources:
       FunctionName: !Ref Alias
       Action: lambda:InvokeFunction
       Principal: !Ref InvokerPrincipal
-      SourceArn: !If [HasInvokerSource, !Ref InvokerSourceArn, !Ref "AWS::NoValue"]
+      SourceArn: !Ref InvokerSourceArn
 
 Outputs:
   AliasArn:

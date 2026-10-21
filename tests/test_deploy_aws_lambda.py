@@ -95,6 +95,8 @@ def test_an_existing_alb_or_api_gateway_may_invoke_the_alias():
     assert p["InvokerPrincipal"]["Default"] == "" and p["InvokerSourceArn"]["Default"] == ""
     (permission,) = [r for r in resources("AWS::Lambda::Permission").values() if r.get("Condition") == "HasInvoker"]
     assert permission["Properties"]["Principal"] == {"Ref": "InvokerPrincipal"}
+    assert permission["Properties"]["SourceArn"] == {"Ref": "InvokerSourceArn"}
+    assert "InvokerSourceArn" in str(load()["Rules"]), "a principal without a source is a confused deputy"
     assert load()["Outputs"]["AliasArn"]
 
 
