@@ -37,6 +37,7 @@ A button that opens a guide instead of the provider has one step left for you, d
 - [Formats](docs/formats.md): System One, Decisions, chat, `/classify`, `/predict`
 - [Configuration](docs/configuration.md): variables, warm-up, shedding, metrics
 - [Sizing](docs/sizing.md): how many replicas, how much memory, which deadline
+- [Use cases](docs/use-cases.md): six ready-made configurations
 - [Verify the image](docs/verify.md): signature, provenance, weights
 - Deploy guides: [`deploy/`](deploy/); release and contribution notes: [MAINTAINERS.md](MAINTAINERS.md); [CHANGELOG.md](CHANGELOG.md)
 
