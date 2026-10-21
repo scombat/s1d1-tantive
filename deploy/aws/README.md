@@ -99,3 +99,28 @@ aws cloudformation deploy --stack-name s1d1-tantive --region eu-west-1 --templat
 ```
 
 Add `ApiKey=<key>` when the service is reachable beyond the VPC.
+
+## Lambda
+
+`template.lambda.yaml` runs the image as a Lambda container function, with the [Lambda Web Adapter] relaying each call to
+port 8788. Pick it over ECS for bursty or occasional traffic (you pay per call and per GB-second, nothing when idle);
+pick ECS for steady load, which costs less there. Lambda cannot pull from ghcr.io:
+`Dockerfile.lambda` is `FROM` our image plus the adapter (`AWS_LWA_PORT=8788`, readiness on `/ready`); build it per
+architecture, push it to an ECR repository of the function's region and pass that URI as `ImageUri`
+(`MemorySize` 4096 for `full`, 2048 for `small`). The Function URL is IAM-signed by default; `UrlAuthType=NONE` makes it
+public (give `ApiKey`), `DISABLED` plus `InvokerPrincipal` lets an ALB or API Gateway you already have call the alias.
+
+**`ProvisionedConcurrency`** (default 1) is what avoids the cold start: with it the instance is already warm and has loaded
+the model, so calls answer at service speed, which suits a gateway such as LiteLLM, and you pay for it all the time
+(about the cost of a small always-on task). With `0` the function costs nothing idle, but the first call after a pause
+waits several seconds for the model: for occasional use only. Lambda constraints the image meets: the file system is
+read-only except `/tmp` (the service writes nothing; no `.pyc`, `HOME=/tmp`) and Lambda runs its own unprivileged
+user, so every file must be world-readable (checked: the image runs read-only as another uid).
+
+```bash
+aws cloudformation deploy --stack-name s1d1-tantive-lambda --template-file deploy/aws/template.lambda.yaml \
+  --region eu-west-1 --capabilities CAPABILITY_IAM --parameter-overrides ImageUri=<ecr-image-uri> \
+  Tiers="TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.0"
+```
+
+[Lambda Web Adapter]: https://github.com/awslabs/aws-lambda-web-adapter

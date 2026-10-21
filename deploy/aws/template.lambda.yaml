@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  s1d1-tantive on AWS Lambda: a container function (the image built from Dockerfile.lambda, with the Lambda Web
+  Adapter) behind an alias, with provisioned concurrency to keep it warm, and an optional Function URL.
+
+Parameters:
+  ImageUri:
+    Type: String
+    AllowedPattern: '^\d{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/.+'
+    Description: >-
+      Image built from Dockerfile.lambda, in an ECR repository of this region (Lambda cannot pull from ghcr.io). Use
+      a new tag or a digest for each build: the function version is republished when this value changes.
+  Architecture:
+    Type: String
+    Default: x86_64
+    AllowedValues: [x86_64, arm64]
+    Description: Must be the architecture the image was built for.
+  MemorySize:
+    Type: Number
+    Default: 4096
+    MinValue: 512
+    MaxValue: 10240
+    Description: MB. 4096 suits full (2 GiB of RAM needed), 2048 suits small (1 GiB). CPU grows with memory.
+  Timeout:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 900
+    Description: Seconds per invocation, a cold start included.
+  ProvisionedConcurrency:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    Description: >-
+      Warm instances kept ready, billed all the time. 1 or more means no cold start (the model is loaded before the
+      first call). 0 means none: the first call after idle waits several seconds for the model, and the function is
+      only for occasional use.
+  UrlAuthType:
+    Type: String
+    Default: AWS_IAM
+    AllowedValues: [AWS_IAM, NONE, DISABLED]
+    Description: >-
+      Function URL: AWS_IAM (callers sign requests), NONE (public: then give ApiKey) or DISABLED (no URL, use
+      InvokerPrincipal with an ALB or API Gateway you already have).
+  InvokerPrincipal:
+    Type: String
+    Default: ""
+    Description: >-
+      Service allowed to invoke the alias, for an existing load balancer or API: elasticloadbalancing.amazonaws.com
+      or apigateway.amazonaws.com. Empty = none.
+  InvokerSourceArn:
+    Type: String
+    Default: ""
+    Description: ARN of that ALB target group or API, to limit the permission to it. Empty = any source of the principal.
+  Tiers:
+    Type: String
+    Description: >-
+      S1D1_TIERS, for example TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.0. It must match the tier names the
+      gateway sends, otherwise the service answers 422.
+  Formats:
+    Type: String
+    Default: systemone,decisions,classify
+    Description: S1D1_FORMATS, the adapters to mount.
+  DeadlineMs:
+    Type: Number
+    Default: 800
+    MinValue: 1
+    Description: S1D1_DEADLINE_MS, shed a request when its expected wait exceeds this.
+  ApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: >-
+      S1D1_API_KEY. Empty = no key. It becomes an environment variable of the function (encrypted at rest, visible to
+      whoever may read the function configuration): give one whenever UrlAuthType is NONE.
+  OtlpEndpoint:
+    Type: String
+    Default: ""
+    Description: OTEL_EXPORTER_OTLP_ENDPOINT, optional. Empty = no export.
+
+Conditions:
+  HasProvisioned: !Not [!Equals [!Ref ProvisionedConcurrency, 0]]
+  HasFunctionUrl: !Not [!Equals [!Ref UrlAuthType, DISABLED]]
+  UrlIsPublic: !Equals [!Ref UrlAuthType, NONE]
+  HasInvoker: !Not [!Equals [!Ref InvokerPrincipal, ""]]
+  HasInvokerSource: !Not [!Equals [!Ref InvokerSourceArn, ""]]
+  HasApiKey: !Not [!Equals [!Ref ApiKey, ""]]
+  HasOtlpEndpoint: !Not [!Equals [!Ref OtlpEndpoint, ""]]
+
+Resources:
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}
+      RetentionInDays: 30
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  Function:
+    Type: AWS::Lambda::Function
+    DependsOn: Logs
+    Properties:
+      FunctionName: !Ref AWS::StackName
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri
+      Architectures: [!Ref Architecture]
+      MemorySize: !Ref MemorySize
+      Timeout: !Ref Timeout
+      Role: !GetAtt Role.Arn
+      Environment:
+        Variables:
+          S1D1_TIERS: !Ref Tiers
+          S1D1_FORMATS: !Ref Formats
+          S1D1_DEADLINE_MS: !Ref DeadlineMs
+          S1D1_API_KEY: !If [HasApiKey, !Ref ApiKey, !Ref "AWS::NoValue"]
+          OTEL_EXPORTER_OTLP_ENDPOINT: !If [HasOtlpEndpoint, !Ref OtlpEndpoint, !Ref "AWS::NoValue"]
+
+  # A version is immutable, so a new ImageUri replaces it; the alias then moves and the warm instances are renewed.
+  Version:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref Function
+      Description: !Ref ImageUri
+
+  Alias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref Function
+      FunctionVersion: !GetAtt Version.Version
+      Name: live
+      ProvisionedConcurrencyConfig: !If
+        - HasProvisioned
+        - ProvisionedConcurrentExecutions: !Ref ProvisionedConcurrency
+        - !Ref "AWS::NoValue"
+
+  FunctionUrl:
+    Type: AWS::Lambda::Url
+    Condition: HasFunctionUrl
+    DependsOn: Alias
+    Properties:
+      TargetFunctionArn: !Ref Function
+      Qualifier: live
+      AuthType: !Ref UrlAuthType
+
+  # A public URL needs both permissions; with AWS_IAM the callers' own policies decide.
+  PublicUrlPermission:
+    Type: AWS::Lambda::Permission
+    Condition: UrlIsPublic
+    Properties:
+      FunctionName: !Ref Alias
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  PublicInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: UrlIsPublic
+    Properties:
+      FunctionName: !Ref Alias
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+  InvokerPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasInvoker
+    Properties:
+      FunctionName: !Ref Alias
+      Action: lambda:InvokeFunction
+      Principal: !Ref InvokerPrincipal
+      SourceArn: !If [HasInvokerSource, !Ref InvokerSourceArn, !Ref "AWS::NoValue"]
+
+Outputs:
+  AliasArn:
+    Description: Target for an ALB or API Gateway (the alias, so calls reach the warm instances).
+    Value: !Ref Alias
+  FunctionUrl:
+    Condition: HasFunctionUrl
+    Description: Function URL (sign requests with SigV4 when UrlAuthType is AWS_IAM).
+    Value: !GetAtt FunctionUrl.FunctionUrl

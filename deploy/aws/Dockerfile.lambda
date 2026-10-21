@@ -1,0 +1,20 @@
+# Lambda cannot pull from ghcr.io: build this image, push it to an ECR repository in the function's region, and
+# give that URI to template.lambda.yaml (ImageUri). One build per architecture; use the small image for small sizes:
+#   docker buildx build --platform linux/amd64 -f deploy/aws/Dockerfile.lambda -t <account>.dkr.ecr.<region>.amazonaws.com/s1d1-tantive:0.6.0 --push .
+ARG BASE=ghcr.io/scombat/s1d1-tantive:0.6.0-full-onnx-int8
+FROM ${BASE}
+
+# The Lambda Web Adapter is a Lambda extension: it runs beside our server, polls /ready, then relays each invocation
+# as an HTTP request to port 8788. The service itself (ENTRYPOINT python -m tantive) is unchanged.
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.1.0 /lambda-adapter /opt/extensions/lambda-adapter
+
+# Async init: under provisioned concurrency the model loads during init as usual; without it, a load longer than
+# Lambda's 10 s init window finishes during the first invocation instead of failing the init.
+# Lambda mounts the file system read-only except /tmp: no .pyc next to the sources, HOME in /tmp.
+ENV AWS_LWA_PORT=8788 \
+    AWS_LWA_READINESS_CHECK_PATH=/ready \
+    AWS_LWA_ASYNC_INIT=true \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HOME=/tmp
+
+USER 10001
