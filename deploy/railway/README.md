@@ -61,3 +61,8 @@ README button opens this page instead.
 
 New project → Deploy → Docker Image → the image above, then set the same variables and the healthcheck path in the
 service settings.
+
+## Terraform
+
+One file, `deploy/railway/terraform/main.tf` (provider `terraform-community-providers/railway`, a community one: Railway
+publishes none): the service on the image, its variables and public domain, in a project and environment you give. Not applied here.

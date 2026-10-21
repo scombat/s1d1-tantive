@@ -52,3 +52,9 @@ heroku config:set S1D1_TIERS="TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.
 heroku ps:type web=standard-2x -a s1d1-tantive
 git push heroku main      # builds deploy/heroku/Dockerfile named by heroku.yml
 ```
+
+## Terraform
+
+One file, `deploy/heroku/terraform/main.tf` (provider `heroku/heroku`): the app on the container stack, a build of this
+repository's `heroku.yml` from a tarball URL, and the web formation. Heroku cannot pull an image, so the repository must be
+public. Not applied here (no Heroku account).

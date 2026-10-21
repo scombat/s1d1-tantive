@@ -84,5 +84,5 @@ def test_readme_states_button_status_and_limits():
 
 
 def test_no_secret_value_in_the_files():
-    for path in (ROOT / "app.json", ROOT / "heroku.yml", *FOLDER.iterdir()):
+    for path in (ROOT / "app.json", ROOT / "heroku.yml", *(p for p in FOLDER.rglob("*") if p.is_file())):
         assert not re.search(r"(ghp_|github_pat_|BEGIN [A-Z ]*PRIVATE KEY)", path.read_text()), path

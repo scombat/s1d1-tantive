@@ -82,5 +82,5 @@ def test_readme_states_button_status_and_free_tier():
 
 
 def test_no_secret_value_in_the_folder():
-    for path in FOLDER.iterdir():
+    for path in (p for p in FOLDER.rglob("*") if p.is_file()):
         assert not re.search(r"(ghp_|BEGIN [A-Z ]*PRIVATE KEY)", path.read_text()), path

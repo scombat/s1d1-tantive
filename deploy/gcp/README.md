@@ -71,3 +71,9 @@ gcloud run deploy s1d1-tantive --image $REGION-docker.pkg.dev/$PROJECT/s1d1/s1d1
 
 The values contain commas, so the `^@^` prefix makes `@` the separator between variables (gcloud's alternate delimiter
 syntax for list flags).
+
+## Terraform
+
+One file, `deploy/gcp/terraform/main.tf` (provider `hashicorp/google`): the Cloud Run service, its service account and the
+Secret Manager key. `image` has no default: copy the published image into your Artifact Registry first (Cloud Run cannot
+pull from GHCR). Not applied here (no Google Cloud access).

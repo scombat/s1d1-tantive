@@ -74,7 +74,7 @@ def test_publish_steps_name_the_space_the_secret_and_the_paid_plan():
 
 
 def test_no_secret_value_in_the_folder():
-    for path in FOLDER.iterdir():
+    for path in (p for p in FOLDER.rglob("*") if p.is_file()):
         assert not re.search(r"(ghp_|hf_[A-Za-z0-9]{20,}|BEGIN [A-Z ]*PRIVATE KEY)", path.read_text()), path
 
 

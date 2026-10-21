@@ -46,3 +46,8 @@ or `full` (2 GiB) choose the `1c-2g` plan (1 CPU, 2 GB) and change the image tag
 
 New → Web Service → Existing Image → `ghcr.io/scombat/s1d1-tantive:0.6.0-tiny-onnx-int8`, instance type Free,
 Advanced → Health Check Path `/ready`, and the environment variables above.
+
+## Terraform
+
+One file, `deploy/render/terraform/main.tf` (provider `render-oss/render`): the web service on the published image,
+`/ready` health check and a generated key. Set `RENDER_API_KEY` and `RENDER_OWNER_ID`. Not applied here (no Render account).

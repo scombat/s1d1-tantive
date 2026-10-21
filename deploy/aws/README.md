@@ -68,15 +68,13 @@ CloudFormation quick-create links take the template from an S3 URL, so upload it
 aws s3 cp deploy/aws/template.yaml s3://<your-bucket>/s1d1-tantive/template.yaml
 ```
 
-The bucket must let CloudFormation read the object (the console reads it with your credentials, so a private bucket
-in your account works). Then the link, with the bucket's HTTPS object URL:
+The console reads the object with your credentials, so a private bucket in your account works. Then the link:
 
 ```text
 https://eu-west-1.console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/create/review?templateURL=<s3-https-url>&stackName=s1d1-tantive
 ```
 
-for example `<s3-https-url>` = `https://s3.eu-west-1.amazonaws.com/<your-bucket>/s1d1-tantive/template.yaml`. As
-button markdown:
+with `<s3-https-url>` = `https://s3.eu-west-1.amazonaws.com/<your-bucket>/s1d1-tantive/template.yaml`. As a button:
 
 ```markdown
 [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://eu-west-1.console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/create/review?templateURL=<s3-https-url>&stackName=s1d1-tantive)
@@ -97,7 +95,6 @@ aws cloudformation deploy --stack-name s1d1-tantive --region eu-west-1 --templat
   --parameter-overrides VpcId=<vpc-id> SubnetIds=<subnet-a>,<subnet-b> AssignPublicIp=ENABLED \
                         IngressCidr=<10.0.0.0/16> Tiers="TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.0"
 ```
-
 Add `ApiKey=<key>` when the service is reachable beyond the VPC.
 
 ## Lambda
@@ -112,8 +109,8 @@ public (give `ApiKey`), `DISABLED` plus `InvokerPrincipal` lets an ALB or API Ga
 
 **`ProvisionedConcurrency`** (default 1) is what avoids the cold start: with it the instance is already warm and has loaded
 the model, so calls answer at service speed, which suits a gateway such as LiteLLM, and you pay for it all the time
-(about the cost of a small always-on task). With `0` the function costs nothing idle, but the first call after a pause
-waits several seconds for the model: for occasional use only. Lambda constraints the image meets: the file system is
+(about a small always-on task). With `0` it costs nothing idle, but the first call after a pause waits
+several seconds for the model: for occasional use only. Lambda constraints the image meets: the file system is
 read-only except `/tmp` (the service writes nothing; no `.pyc`, `HOME=/tmp`) and Lambda runs its own unprivileged
 user, so every file must be world-readable (checked: the image runs read-only as another uid).
 
@@ -124,3 +121,9 @@ aws cloudformation deploy --stack-name s1d1-tantive-lambda --template-file deplo
 ```
 
 [Lambda Web Adapter]: https://github.com/awslabs/aws-lambda-web-adapter
+
+## Terraform
+
+`deploy/aws/terraform/ecs/main.tf` (ECS Fargate, like `template.yaml`) and `deploy/aws/terraform/lambda/main.tf` (Lambda with
+provisioned concurrency, like `template.lambda.yaml`), provider `hashicorp/aws`: your VPC, subnets, cluster or ECR image are
+variables. Not applied (no AWS access).

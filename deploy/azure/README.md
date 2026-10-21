@@ -79,3 +79,9 @@ It answers the variant, the tiers and `ready: true`.
 
 The button opens the Azure portal on this template; it needs the file to be publicly reachable, which is the case
 once this repository is public. Until then, use the command above.
+
+## Terraform
+
+One file, `deploy/azure/terraform/main.tf` (provider `hashicorp/azurerm`): the same Container App with its probes, scaling and
+secret key. You give your resource group, environment ID and `s1d1_tiers`; `terraform init && terraform apply`.
+Not applied here (no Azure access): only `terraform validate` was run.

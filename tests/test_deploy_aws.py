@@ -168,7 +168,7 @@ def test_readme_launch_stack_and_cli():
 
 
 def test_no_secret_value_in_the_folder():
-    for path in FOLDER.iterdir():
+    for path in (p for p in FOLDER.rglob("*") if p.is_file()):
         assert not re.search(r"(ghp_|github_pat_|AKIA[0-9A-Z]{16}|BEGIN [A-Z ]*PRIVATE KEY)", path.read_text()), path
 
 
