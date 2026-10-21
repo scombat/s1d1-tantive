@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tantive"
+version = "0.6.0"
+description = "The vessel that carries the s1d1 router: a decision service for LiteLLM and other clients"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BUSL-1.1"
+license-files = ["LICENSE"]
+authors = [{ name = "Steve Combat" }]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "onnxruntime",
+    "tokenizers",
+    "numpy",
+    "prometheus-client",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-exporter-prometheus>=0.66b1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+    "ruff",
+    "pydantic",
+    "huggingface_hub",
+    "pyyaml",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tantive"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "slow: needs the model weights (set S1D1_TEST_MODEL_DIR)",
+    "docker: builds and runs the image (needs docker)",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B"]
+"tests/fixtures/litellm_types.py" = ["UP040"]  # verbatim copy of LiteLLM's models
