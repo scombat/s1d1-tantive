@@ -260,3 +260,21 @@ def test_gitleaks_allowlist_is_by_path_with_a_reason():
     assert allow["paths"] == [r"""^cosign\.pub$"""]
     assert allow["description"].strip()
     assert "rules" not in config  # no rule disabled
+
+
+def test_release_job_publishes_the_github_release_from_the_changelog():
+    build = load("build.yml")
+    job = build["jobs"]["release"]
+    assert "provenance" in job["needs"]
+    assert job["if"] == "github.ref_type == 'tag'"
+    assert job["permissions"] == {"contents": "write"}  # this job only; the workflow default stays read
+    assert all(j.get("permissions", {}).get("contents") != "write" for n, j in build["jobs"].items() if n != "release")
+    run = "\n".join(str(s.get("run", "")) for s in job["steps"])
+    assert "tools/release_notes.py" in run
+    assert "gh release view" in run  # idempotent: an existing release is left alone
+    assert "gh release create" in run and "--notes-file" in run
+    assert any("GH_TOKEN" in s.get("env", {}) and "secrets.GITHUB_TOKEN" in s["env"]["GH_TOKEN"] for s in job["steps"])
+
+
+def test_maintainers_notes_mention_the_release_job():
+    assert "`release` job" in (ROOT / "MAINTAINERS.md").read_text()

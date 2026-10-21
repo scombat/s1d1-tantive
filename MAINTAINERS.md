@@ -32,7 +32,9 @@ A version tag runs the `build` workflow (`.github/workflows/build.yml`):
 1. hadolint, then the base image for amd64 (native) and arm64 (QEMU), pushed by digest, then its manifest list;
 2. for each variant and platform, on that platform's base: build, SBOM (CycloneDX, run artifact), Trivy gate, push by digest;
 3. per variant, the manifest list under the version tag, the keyless cosign signature and the two SBOM attestations on its digest;
-4. SLSA level 3 provenance by the `slsa-github-generator` container workflow.
+4. SLSA level 3 provenance by the `slsa-github-generator` container workflow;
+5. the `release` job creates the GitHub release of the tag with the `CHANGELOG.md` section of that version as notes
+   (`tools/release_notes.py`; the job fails if the section is missing, and leaves an existing release alone).
 
 A failed step stops the chain for that variant; no image is tagged before both platform images passed their scan.
 There is no `latest` tag. To release: set the version in `pyproject.toml` and `src/tantive/__init__.py`, add the

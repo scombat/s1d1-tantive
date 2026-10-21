@@ -1,7 +1,7 @@
 # The image chain (spec § 6), multi-architecture: lint → base image per platform (pushed by digest) → base manifest
 # list → one job per variant and platform (build on that platform's base, SBOM, Trivy gate, push by digest) → per
 # variant, the manifest list under the version tag, keyless cosign signature and SBOM attestations on the list digest → SLSA
-# provenance on the list digest. Every step blocks the next; nothing is tagged before its scan passed. Runs on
+# provenance on the list digest → the GitHub release with the CHANGELOG section. Every step blocks the next; nothing is tagged before its scan passed. Runs on
 # version tags; workflow_dispatch builds a subset of variants for a rehearsal.
 name: build
 
@@ -282,3 +282,24 @@ jobs:
       registry-username: ${{ github.actor }}
     secrets:
       registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    needs: [version, provenance]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    # the only job that writes to the repository; creating a release needs contents: write
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Create the release of the tag with the CHANGELOG section as notes, unless it exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "release ${TAG} exists, left as it is"
+            exit 0
+          fi
+          python3 tools/release_notes.py "${TAG}" > "${RUNNER_TEMP}/notes.md"
+          gh release create "${TAG}" --verify-tag --title "${TAG}" --notes-file "${RUNNER_TEMP}/notes.md"
