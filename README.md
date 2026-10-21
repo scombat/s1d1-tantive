@@ -10,6 +10,18 @@ whether the prompt needs tools. Four ONNX int8 variants (`full`, `compact`, `sma
 Router and any decision client, chat-completions for older LiteLLM, vLLM-style `/classify` and TEI-style `/predict`
 for everything else. One image per variant, for amd64 and arm64, signed and built with SLSA 3 provenance.
 
+## What you get
+
+- **Five formats on one model**: System One, OpenAI Decisions, chat-completions, vLLM `/classify`, TEI `/predict`, enabled by `S1D1_FORMATS`.
+- **Safe answers**: a fixed question catalogue, and a 422 for anything outside it.
+- **Probabilities you can threshold**: tier probabilities calibrated by the model's own σ.
+- **Long prompts handled**: `head_tail` by default, `chunks` when the middle matters.
+- **Predictable latency**: one inference thread per vCPU, and a 503 + `Retry-After` when the deadline would be missed.
+- **Observable**: Prometheus `/metrics` and OpenTelemetry (OTLP) traces and metrics.
+- **Images you can trust**: multi-arch (amd64, arm64), signed keyless, with SBOM and SLSA 3 provenance.
+- **Weights you can check**: `python -m tantive.verify` replays the checksum check anywhere.
+- **One click to run**: seven deployment targets under `deploy/`.
+
 ## Deploy
 
 One folder per target under `deploy/`, same image and variables everywhere.
@@ -23,7 +35,7 @@ A button that opens a guide instead of the provider has one step left for you, d
 - [Getting started](docs/getting-started.md): run the image, read `/info`, make a first call
 - [LiteLLM](docs/litellm.md): the Auto Router, by the GUI and by `curl`
 - [Formats](docs/formats.md): System One, Decisions, chat, `/classify`, `/predict`
-- [Configuration](docs/configuration.md): variables, warm-up, shedding, sizing, metrics
+- [Configuration](docs/configuration.md): variables, warm-up, shedding, metrics
 - [Verify the image](docs/verify.md): signature, provenance, weights
 - Deploy guides: [`deploy/`](deploy/); release and contribution notes: [MAINTAINERS.md](MAINTAINERS.md); [CHANGELOG.md](CHANGELOG.md)
 

@@ -25,6 +25,7 @@ MARKDOWN = [
 ]
 
 SECTIONS = [
+    "## What you get",
     "## Deploy",
     "## Documentation",
     "## Quickstart",
@@ -56,6 +57,14 @@ def test_readme_length():
 def test_readme_section_order():
     heads = [line for line in lines(README) if line.startswith("## ")]
     assert heads == SECTIONS
+
+
+def test_readme_what_you_get_is_eight_to_ten_one_line_bullets():
+    text = README.read_text()
+    block = text.split("## What you get\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in block.splitlines() if line.strip()]
+    assert 8 <= len(bullets) <= 10
+    assert all(line.startswith("- ") and len(line) <= 160 for line in bullets), bullets
 
 
 def test_readme_opens_with_badges_then_what_it_is():
