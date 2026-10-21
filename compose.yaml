@@ -1,0 +1,23 @@
+# Local run of one variant image: `docker compose up --build`, then curl localhost:8788/info
+services:
+  tantive:
+    build:
+      context: .
+      target: variant
+      args:
+        VARIANT: small-onnx-int8
+    image: tantive:small-onnx-int8
+    ports:
+      - "8788:8788"
+    environment:
+      - S1D1_FORMATS=systemone,decisions,chat,classify,predict
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      # no curl in the image: urllib does the probe
+      test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8788/ready').status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 3

@@ -1,0 +1,9 @@
+title = "s1d1-tantive gitleaks configuration"
+
+[extend]
+# keep every default rule; nothing is disabled
+useDefault = true
+
+[[allowlists]]
+description = "cosign.pub is a PUBLIC key, committed on purpose so images up to 0.5.0 can be verified (docs/verify.md); only this path is skipped"
+paths = ['''^cosign\.pub$''']

@@ -1,0 +1,3 @@
+# hadolint: every warning fails the build; no rule is ignored (pin versions, no latest, --no-cache-dir, USER set).
+failure-threshold: warning
+ignored: []

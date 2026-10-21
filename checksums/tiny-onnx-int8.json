@@ -1,0 +1,39 @@
+{
+  "repo": "scombat/s1d1-router-6src-tiny-onnx-int8",
+  "revision": "997bddefbfb52b5950d5b688f0ee6d0cb9bfc414",
+  "fetched": "2026-10-20",
+  "files": {
+    "LICENSE": {
+      "git_sha1": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+      "size": 11357
+    },
+    "NOTICE": {
+      "git_sha1": "578c8406a3a80aa6d3cdc25821d29b5673ace40c",
+      "size": 1543
+    },
+    "config.json": {
+      "git_sha1": "515ce3b86ea851851b06879d936f6588b59c957d",
+      "size": 3055
+    },
+    "model_int8.onnx": {
+      "sha256": "32d30a44ae6cf7872a0a4df7944b032d0c6c302990477a7340b506e432cd805e",
+      "size": 24742151
+    },
+    "tokenizer.json": {
+      "sha256": "aebee76d0312011b0d73b08a255d4d11d25c83e9639324870c7b916ea102e13e",
+      "size": 34363287
+    },
+    "tokenizer_config.json": {
+      "git_sha1": "1da03dd2a07dfc120556a00941a9ba98a8f16c00",
+      "size": 682
+    },
+    "variant.json": {
+      "git_sha1": "8f296a843ed4bdb556765660572c9cee655414e8",
+      "size": 123
+    },
+    "vocab_map.npy": {
+      "sha256": "3466512656f2b9ca115751505e310b799aa7a2028bf36d43e6b06413b608e104",
+      "size": 2048128
+    }
+  }
+}

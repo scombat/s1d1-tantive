@@ -1,0 +1,284 @@
+# The image chain (spec § 6), multi-architecture: lint → base image per platform (pushed by digest) → base manifest
+# list → one job per variant and platform (build on that platform's base, SBOM, Trivy gate, push by digest) → per
+# variant, the manifest list under the version tag, keyless cosign signature and SBOM attestations on the list digest → SLSA
+# provenance on the list digest. Every step blocks the next; nothing is tagged before its scan passed. Runs on
+# version tags; workflow_dispatch builds a subset of variants for a rehearsal.
+name: build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      variants:
+        description: "Comma-separated variants to build (rehearsal; tags build all four)"
+        default: "full-onnx-int8,small-onnx-int8"
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+  actions: read
+
+env:
+  BASE_IMAGE: ghcr.io/scombat/s1d1-tantive-base
+  IMAGE: ghcr.io/scombat/s1d1-tantive
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+          config: .hadolint.yaml
+
+  version:
+    needs: lint
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      variants: ${{ steps.version.outputs.variants }}
+    steps:
+      - name: Version from the tag, or a dev version on dispatch; the variants to build
+        id: version
+        env:
+          REQUESTED: ${{ inputs.variants }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo 'variants=["full-onnx-int8","compact-onnx-int8","small-onnx-int8","tiny-onnx-int8"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "variants=$(jq -cn --arg v "$REQUESTED" '$v | split(",") | map(gsub("\\s"; "")) | map(select(. != ""))')" >> "$GITHUB_OUTPUT"
+          fi
+
+  base:
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    outputs:
+      # one output per platform; a matrix instance only sets its own (an empty value does not overwrite another's)
+      amd64: ${{ matrix.platform == 'linux/amd64' && steps.build.outputs.digest || '' }}
+      arm64: ${{ matrix.platform == 'linux/arm64' && steps.build.outputs.digest || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build the base image for this platform and push it by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: base
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/scombat/s1d1-tantive-base,push-by-digest=true,name-canonical=true,push=true
+          labels: |
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=base-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=base-${{ matrix.platform }}
+
+  base-manifest:
+    needs: [version, base]
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.manifest.outputs.digest }}
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Manifest list of the two platform images under the version tag
+        id: manifest
+        run: |
+          docker buildx imagetools create -t "${BASE_IMAGE}:${{ needs.version.outputs.version }}" \
+            "${BASE_IMAGE}@${{ needs.base.outputs.amd64 }}" \
+            "${BASE_IMAGE}@${{ needs.base.outputs.arm64 }}"
+          echo "digest=$(docker buildx imagetools inspect "${BASE_IMAGE}:${{ needs.version.outputs.version }}" --format '{{ .Manifest.Digest }}')" >> "$GITHUB_OUTPUT"
+
+  variant:
+    needs: [version, base]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(needs.version.outputs.variants) }}
+        platform: [linux/amd64, linux/arm64]
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    outputs:
+      # one output per variant and platform; a matrix instance only sets its own
+      full-onnx-int8-amd64: ${{ matrix.variant == 'full-onnx-int8' && matrix.platform == 'linux/amd64' && steps.push.outputs.digest || '' }}
+      full-onnx-int8-arm64: ${{ matrix.variant == 'full-onnx-int8' && matrix.platform == 'linux/arm64' && steps.push.outputs.digest || '' }}
+      compact-onnx-int8-amd64: ${{ matrix.variant == 'compact-onnx-int8' && matrix.platform == 'linux/amd64' && steps.push.outputs.digest || '' }}
+      compact-onnx-int8-arm64: ${{ matrix.variant == 'compact-onnx-int8' && matrix.platform == 'linux/arm64' && steps.push.outputs.digest || '' }}
+      small-onnx-int8-amd64: ${{ matrix.variant == 'small-onnx-int8' && matrix.platform == 'linux/amd64' && steps.push.outputs.digest || '' }}
+      small-onnx-int8-arm64: ${{ matrix.variant == 'small-onnx-int8' && matrix.platform == 'linux/arm64' && steps.push.outputs.digest || '' }}
+      tiny-onnx-int8-amd64: ${{ matrix.variant == 'tiny-onnx-int8' && matrix.platform == 'linux/amd64' && steps.push.outputs.digest || '' }}
+      tiny-onnx-int8-arm64: ${{ matrix.variant == 'tiny-onnx-int8' && matrix.platform == 'linux/arm64' && steps.push.outputs.digest || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Architecture name of this platform, for artifact names
+        id: arch
+        run: echo "arch=${PLATFORM#linux/}" >> "$GITHUB_OUTPUT"
+        env:
+          PLATFORM: ${{ matrix.platform }}
+      - name: Read the pinned Hub metadata of the variant
+        id: model
+        run: |
+          f="checksums/${{ matrix.variant }}.json"
+          {
+            echo "repo=$(jq -r .repo "$f")"
+            echo "revision=$(jq -r .revision "$f")"
+            echo "sha256=$(jq -r '.files["model_int8.onnx"].sha256' "$f")"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build the variant on this platform's base, as a local image for the scan
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: variant
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: tantive:${{ matrix.variant }}-${{ steps.arch.outputs.arch }}
+          build-contexts: |
+            base=docker-image://ghcr.io/scombat/s1d1-tantive-base@${{ needs.base.outputs[steps.arch.outputs.arch] }}
+          build-args: |
+            VARIANT=${{ matrix.variant }}
+            VERSION=${{ env.VERSION }}
+            GIT_SHA=${{ github.sha }}
+            MODEL_REPO=${{ steps.model.outputs.repo }}
+            MODEL_REVISION=${{ steps.model.outputs.revision }}
+            MODEL_SHA256=${{ steps.model.outputs.sha256 }}
+          cache-from: type=gha,scope=${{ matrix.variant }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}-${{ matrix.platform }}
+      - name: SBOM in CycloneDX of this platform image, kept as a run artifact
+        uses: anchore/sbom-action@fffec3d851af758d56fee099cf3fbf8aa8779843 # v0.24.3
+        with:
+          image: tantive:${{ matrix.variant }}-${{ steps.arch.outputs.arch }}
+          format: cyclonedx-json
+          output-file: sbom-${{ matrix.variant }}-${{ steps.arch.outputs.arch }}.json
+          upload-artifact: true
+          artifact-name: sbom-${{ matrix.variant }}-${{ steps.arch.outputs.arch }}
+      - name: Trivy gate on this platform image, fixable HIGH and CRITICAL fail the build
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: tantive:${{ matrix.variant }}-${{ steps.arch.outputs.arch }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore
+      - name: Push the scanned image by digest, same inputs so a cache hit and no rebuild
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: variant
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/scombat/s1d1-tantive,push-by-digest=true,name-canonical=true,push=true
+          build-contexts: |
+            base=docker-image://ghcr.io/scombat/s1d1-tantive-base@${{ needs.base.outputs[steps.arch.outputs.arch] }}
+          build-args: |
+            VARIANT=${{ matrix.variant }}
+            VERSION=${{ env.VERSION }}
+            GIT_SHA=${{ github.sha }}
+            MODEL_REPO=${{ steps.model.outputs.repo }}
+            MODEL_REVISION=${{ steps.model.outputs.revision }}
+            MODEL_SHA256=${{ steps.model.outputs.sha256 }}
+          cache-from: type=gha,scope=${{ matrix.variant }}-${{ matrix.platform }}
+
+  variant-manifest:
+    needs: [version, variant]
+    runs-on: ubuntu-latest
+    # keyless signing: Fulcio exchanges this job's OIDC token for a short-lived certificate; a job-level block
+    # replaces the workflow-level one, so every permission the job needs is listed
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(needs.version.outputs.variants) }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ghcr.io/scombat/s1d1-tantive:${{ needs.version.outputs.version }}-${{ matrix.variant }}
+    outputs:
+      full-onnx-int8: ${{ matrix.variant == 'full-onnx-int8' && steps.manifest.outputs.digest || '' }}
+      compact-onnx-int8: ${{ matrix.variant == 'compact-onnx-int8' && steps.manifest.outputs.digest || '' }}
+      small-onnx-int8: ${{ matrix.variant == 'small-onnx-int8' && steps.manifest.outputs.digest || '' }}
+      tiny-onnx-int8: ${{ matrix.variant == 'tiny-onnx-int8' && steps.manifest.outputs.digest || '' }}
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Manifest list of the two platform images under the version tag
+        id: manifest
+        run: |
+          docker buildx imagetools create -t "${TAG}" \
+            "${IMAGE}@${{ needs.variant.outputs[format('{0}-amd64', matrix.variant)] }}" \
+            "${IMAGE}@${{ needs.variant.outputs[format('{0}-arm64', matrix.variant)] }}"
+          echo "digest=$(docker buildx imagetools inspect "${TAG}" --format '{{ .Manifest.Digest }}')" >> "$GITHUB_OUTPUT"
+      - name: Fetch the two platform SBOMs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: sbom-${{ matrix.variant }}-*
+          merge-multiple: true
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign the manifest list keyless (the workflow's OIDC identity, logged in Rekor)
+        run: cosign sign --yes "${IMAGE}@${{ steps.manifest.outputs.digest }}"
+      - name: Attach both platform SBOMs as keyless attestations of the manifest list
+        run: |
+          # sbom-action names the file inside the artifact after the artifact itself (no .json extension)
+          for arch in amd64 arm64; do
+            predicate="sbom-${{ matrix.variant }}-${arch}"
+            test -s "$predicate" || { echo "missing SBOM $predicate"; ls -la; exit 1; }
+            cosign attest --yes --type cyclonedx \
+              --predicate "$predicate" "${IMAGE}@${{ steps.manifest.outputs.digest }}"
+          done
+
+  provenance:
+    needs: [version, variant-manifest]
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(needs.version.outputs.variants) }}
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    # by tag on purpose: slsa-verifier cannot verify a generator referenced by hash (slsa-verifier issue #12)
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ghcr.io/scombat/s1d1-tantive
+      digest: ${{ needs.variant-manifest.outputs[matrix.variant] }}
+      private-repository: true
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
