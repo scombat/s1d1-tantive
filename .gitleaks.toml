@@ -7,3 +7,8 @@ useDefault = true
 [[allowlists]]
 description = "cosign.pub is a PUBLIC key, committed on purpose so images up to 0.5.0 can be verified (docs/verify.md); only this path is skipped"
 paths = ['''^cosign\.pub$''']
+
+[[allowlists]]
+description = "Terraform examples reference the input variable `var.s1d1_api_key`; it is a name, not a value (a literal key next to it would still be caught)"
+regexTarget = "line"
+regexes = ['''var\.s1d1_api_key''']

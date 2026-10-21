@@ -251,15 +251,18 @@ def test_ci_scans_the_whole_history_for_secrets():
     assert "--redact" in run and "--log-opts" in run and "--all" in run
 
 
-def test_gitleaks_allowlist_is_by_path_with_a_reason():
+def test_gitleaks_allowlists_are_narrow_and_explained():
     import tomllib
 
     config = tomllib.loads((ROOT / ".gitleaks.toml").read_text())
     assert config["extend"]["useDefault"] is True  # the default rules stay on
-    (allow,) = config["allowlists"]
-    assert allow["paths"] == [r"""^cosign\.pub$"""]
-    assert allow["description"].strip()
     assert "rules" not in config  # no rule disabled
+    by_path, by_regex = config["allowlists"]
+    assert by_path["paths"] == [r"""^cosign\.pub$"""]  # the public key, by path
+    assert by_regex["regexTarget"] == "line" and by_regex["regexes"] == [r"""var\.s1d1_api_key"""]  # a variable name
+    assert "paths" not in by_regex  # the regex allowlist never skips whole files
+    for allow in (by_path, by_regex):
+        assert allow["description"].strip()
 
 
 def test_release_job_publishes_the_github_release_from_the_changelog():
