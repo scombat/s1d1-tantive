@@ -11,7 +11,7 @@ Please do not open a public issue. Report privately, by either of:
 
 - a private security advisory on the GitHub repository (*Security* tab, *Report a vulnerability*,
   https://github.com/scombat/s1d1-tantive/security/advisories/new);
-- an email to `<security contact>`.
+- an email to `steve@qoo.gy`.
 
 Give the version or image tag, what you did, what you saw and what you expected. We intend to acknowledge a report
 within 7 days and to tell you what we plan to do about it; there is no bug bounty.
