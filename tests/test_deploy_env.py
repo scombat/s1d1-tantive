@@ -26,8 +26,8 @@ def test_otel_optional_in_every_manifest():
     template = (ROOT / "deploy" / "aws" / "template.yaml").read_text()
     assert re.search(r"^  OtlpEndpoint:\n    Type: String\n    Default: \"\"", template, re.M)
     assert "HasOtlpEndpoint:" in template and "Name: OTEL_EXPORTER_OTLP_ENDPOINT" in template
-    # Hugging Face and Railway have no machine-readable manifest: the guides list it as optional
-    for guide in (ROOT / "deploy" / "huggingface" / "PUBLISH.md", ROOT / "deploy" / "railway" / "README.md"):
+    # Hugging Face has no machine-readable manifest: the guide lists it as optional
+    for guide in (ROOT / "deploy" / "huggingface" / "PUBLISH.md",):
         lines = [line for line in guide.read_text().splitlines() if OTEL in line]
         assert lines and all("optional" in line.lower() for line in lines), guide
 

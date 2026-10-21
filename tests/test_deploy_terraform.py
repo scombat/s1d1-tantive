@@ -20,7 +20,6 @@ TARGETS = {
     "gcp": ("gcp/terraform", "gcp"),
     "heroku": ("heroku/terraform", "heroku"),
     "render": ("render/terraform", "render"),
-    "railway": ("railway/terraform", "railway"),
 }
 PROVIDERS = {
     "azure": "hashicorp/azurerm",
@@ -29,7 +28,6 @@ PROVIDERS = {
     "gcp": "hashicorp/google",
     "heroku": "heroku/heroku",
     "render": "render-oss/render",
-    "railway": "terraform-community-providers/railway",
 }
 IDS = list(TARGETS)
 

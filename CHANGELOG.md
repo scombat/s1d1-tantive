@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Railway removed from the deployment targets: its free tier cannot run the small variant, the button needs a
+  template created in a console that proved unreliable, and Render covers the free PaaS case. The 0.5.0 files stay
+  in the history.
 - README: a "What you get" section and the Hub card's hero image; `llms.txt` for assistants; `docs/sizing.md` with
   the sizing calculation written out; `docs/use-cases.md` with six ready-made configurations; a Claude Code skill
   (`.claude/skills/deploy-s1d1-tantive`) that sizes and configures a deployment from those two pages.
@@ -9,7 +12,7 @@
 - AWS Lambda: `deploy/aws/template.lambda.yaml` (container function, Lambda Web Adapter, provisioned concurrency
   to avoid cold starts, invocation permission restricted to a source ARN).
 - Terraform: one `main.tf` per target under `deploy/<target>/terraform/` (Azure, AWS ECS and Lambda, Cloud Run,
-  Heroku, Render, Railway), validated with Terraform 1.16; Hugging Face has no maintained provider.
+  Heroku, Render), validated with Terraform 1.16; Hugging Face has no maintained provider.
 - Build: certifi 2026.10.19 (a Trivy finding on the first v0.6.0 run).
 
 ## 0.6.0 — 2026-10-21

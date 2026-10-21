@@ -21,7 +21,6 @@ VARIANT_MIN_RAM = {"full": 2048, "compact": 2048, "small": 1024, "tiny": 512}
 FOLDERS = {
     "Azure": "deploy/azure",
     "Hugging Face": "deploy/huggingface",
-    "Railway": "deploy/railway",
     "Render": "deploy/render",
     "Google Cloud Run": "deploy/gcp",
     "AWS": "deploy/aws",
@@ -30,7 +29,6 @@ FOLDERS = {
 ALTS = [
     "Deploy to Azure",
     "Deploy on Hugging Face",
-    "Deploy on Railway",
     "Deploy to Render",
     "Run on Google Cloud",
     "Launch on AWS",
@@ -116,7 +114,6 @@ def test_official_buttons_keep_their_image_and_their_exact_url():
 
 GUIDES = {
     "Deploy on Hugging Face": "deploy/huggingface/PUBLISH.md",
-    "Deploy on Railway": "deploy/railway/README.md",
     "Launch on AWS": "deploy/aws/README.md",
 }
 
@@ -131,7 +128,6 @@ def test_buttons_without_a_ready_target_open_their_guide():
 # simple-icons has no Amazon Web Services icon (checked 2026-10-21: no `amazon*` or `aws*` slug): no logo for AWS
 BADGES = {
     "Deploy on Hugging Face": ("FFD21E", "huggingface"),
-    "Deploy on Railway": ("0B0D0E", "railway"),
     "Launch on AWS": ("FF9900", None),
 }
 
@@ -151,7 +147,6 @@ def test_providers_without_an_official_button_get_a_shields_badge():
 def test_guides_say_at_the_top_how_to_replace_the_button_link():
     ready_link = {
         "deploy/huggingface/PUBLISH.md": "https://huggingface.co/spaces/scombat/s1d1-tantive?duplicate=true",
-        "deploy/railway/README.md": "https://railway.com/deploy/",
         "deploy/aws/README.md": "console.aws.amazon.com/cloudformation",
     }
     for guide, link in ready_link.items():
@@ -188,8 +183,6 @@ def image_tag_of_manifest(folder: str) -> str | None:
         return yaml.safe_load((ROOT / "render.yaml").read_text())["services"][0]["image"]["url"]
     if folder.endswith("aws"):
         return re.search(r"Default: (ghcr\.io/\S+)", (ROOT / folder / "template.yaml").read_text()).group(1)
-    if folder.endswith("railway"):
-        return None  # Railway has no file: the guide is the manifest
     return IMAGE.search((ROOT / folder / "Dockerfile").read_text()).group(0)  # Hugging Face, Cloud Run, Heroku
 
 
@@ -221,8 +214,6 @@ def test_health_paths():
     assert yaml.safe_load((ROOT / "render.yaml").read_text())["services"][0]["healthCheckPath"] == "/ready"
     assert "/ready" in (ROOT / "deploy/aws/template.yaml").read_text()
     assert "/health'" not in (ROOT / "deploy/aws/template.yaml").read_text()
-    railway = (ROOT / "deploy/railway/README.md").read_text()
-    assert re.search(r"Healthcheck path \| `/ready`", railway)
     for name in ("deploy/huggingface/Dockerfile", "deploy/gcp/Dockerfile", "deploy/heroku/Dockerfile"):
         assert "HEALTHCHECK" not in (ROOT / name).read_text(), name
 

@@ -10,7 +10,7 @@ Do not restate the docs; read them and apply them.
 1. **Ask three questions**, in one message, and wait:
    - Peak traffic: classifications per second (or users, and how often each prompts).
    - Typical prompt length: short chat turns, or long documents and agent context.
-   - Where it runs: Azure, AWS, Cloud Run, Heroku, Render, Railway, a Hugging Face Space, a Mac, a closed network.
+   - Where it runs: Azure, AWS, Cloud Run, Heroku, Render, a Hugging Face Space, a Mac, a closed network.
 2. **Read** `docs/use-cases.md` (closest case) and `docs/sizing.md` (the calculation). Check LiteLLM's version: before
    1.106 means the `chat` format.
 3. **Compute** replicas, RAM and `S1D1_DEADLINE_MS` with the formulas of `docs/sizing.md`; state the inputs you
