@@ -37,11 +37,12 @@ A version tag runs the `build` workflow (`.github/workflows/build.yml`):
    (`tools/release_notes.py`; the job fails if the section is missing, and leaves an existing release alone).
 
 A failed step stops the chain for that variant; no image is tagged before both platform images passed their scan.
-There is no `latest` tag. To release: set the version in `pyproject.toml` and `src/tantive/__init__.py`, add the
-`CHANGELOG.md` section, then:
+There is no `latest` tag. To release: set the version in `pyproject.toml` (the only place: `__version__` reads it from
+the package metadata), move the image references to the new tag (README, guides, `deploy/`, `CITATION.cff`; the deploy
+tests compare them with the package version), add the `CHANGELOG.md` section, then:
 
 ```bash
-git tag v0.7.0 && git push --tags
+git tag v<version> && git push --tags
 ```
 
 **Rehearsal without a tag:** *Run workflow* on `build` with the variants to build (default `full` and `small`); it
