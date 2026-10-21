@@ -41,7 +41,7 @@ There is no `latest` tag. To release: set the version in `pyproject.toml` and `s
 `CHANGELOG.md` section, then:
 
 ```bash
-git tag v0.6.0 && git push --tags
+git tag v0.7.0 && git push --tags
 ```
 
 **Rehearsal without a tag:** *Run workflow* on `build` with the variants to build (default `full` and `small`); it

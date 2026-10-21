@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.7.0 — 2026-10-21
+
+- Capture of the classified prompts, off by default: `S1D1_CAPTURE_DIR` writes one JSON line per decision (prompt,
+  tier, score, task, confidence, latency, variant) to daily files, with size rotation, sampling, a margin filter for
+  the doubtful cases and a retention. One writer thread behind a bounded queue, never the request;
+  `tantive_capture_written_total` and `tantive_capture_dropped_total`; `/info` reports `capture`. The text goes to
+  these files and nowhere else. Guide: `docs/capture.md`.
+- Capture mounts: the Azure template takes `captureShareName`, `captureStorageAccount` and `captureStorageKey` (Azure
+  Files on `/capture`); the AWS template takes `CaptureFileSystemId` (EFS on `/capture`). The deploy templates keep
+  pulling the 0.6.0 images by default, which have no capture: set `image` or `Image` to a 0.7.0 tag to use it.
+- Checksums repinned: the Hub `variant.json` files now carry `sigma`, `max_length`, `score_center` and `score_scale`.
+
 - Railway removed from the deployment targets: its free tier cannot run the small variant, the button needs a
   template created in a console that proved unreliable, and Render covers the free PaaS case. The 0.5.0 files stay
   in the history.
