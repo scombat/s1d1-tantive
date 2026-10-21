@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 from contextlib import asynccontextmanager
@@ -14,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tantive import service
 from tantive.adapters import ADAPTERS
+from tantive.capture import Capture
 from tantive.config import ConfigError, Settings, cpu_count_from_cgroup
 from tantive.engine import Engine
 from tantive.errors import ApiError, error_response
@@ -139,6 +141,20 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
         model.info if model.info.sigma_source == "variant.json" else replace(model.info, sigma=settings.default_sigma)
     )
     catalogue = Catalogue(native, info.sigma)
+    capture = (
+        Capture(
+            settings.capture_dir,
+            info=info,
+            native=native,
+            sample=settings.capture_sample,
+            min_margin=settings.capture_min_margin,
+            max_bytes=settings.capture_max_mb * 1024 * 1024,
+            retention_days=settings.capture_retention_days,
+            queue_size=settings.capture_queue,
+        )
+        if settings.capture_dir
+        else None
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -146,6 +162,8 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
         log_ready(settings, info, engine)
         yield
         await engine.close()
+        if capture is not None:
+            await asyncio.to_thread(capture.close)
 
     app = FastAPI(title="s1d1-tantive", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings, app.state.engine, app.state.catalogue, app.state.info, app.state.native = (
@@ -155,6 +173,7 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
         info,
         native,
     )
+    app.state.capture = capture
     install_error_handlers(app)
     app.add_middleware(_BodySizeLimit, limit=MAX_BODY_BYTES)
     app.include_router(service.router(engine, settings, info, native))

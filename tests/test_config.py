@@ -80,3 +80,42 @@ def test_default_sigma_setting():
         Settings.from_env({"S1D1_DEFAULT_SIGMA": "0"})
     with pytest.raises(ConfigError, match="S1D1_DEFAULT_SIGMA"):
         Settings.from_env({"S1D1_DEFAULT_SIGMA": "wide"})
+
+
+def test_capture_defaults_to_off():
+    s = Settings.from_env({})
+    assert s.capture_dir is None
+    assert (s.capture_sample, s.capture_min_margin, s.capture_max_mb) == (1.0, None, 100)
+    assert (s.capture_retention_days, s.capture_queue) == (None, 10000)
+
+
+def test_capture_settings_are_read():
+    s = Settings.from_env(
+        {
+            "S1D1_CAPTURE_DIR": "/capture",
+            "S1D1_CAPTURE_SAMPLE": "0.25",
+            "S1D1_CAPTURE_MIN_MARGIN": "0.05",
+            "S1D1_CAPTURE_MAX_MB": "5",
+            "S1D1_CAPTURE_RETENTION_DAYS": "30",
+            "S1D1_CAPTURE_QUEUE": "50",
+        }
+    )
+    assert s.capture_dir == "/capture"
+    assert (s.capture_sample, s.capture_min_margin, s.capture_max_mb) == (0.25, 0.05, 5)
+    assert (s.capture_retention_days, s.capture_queue) == (30, 50)
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("S1D1_CAPTURE_SAMPLE", "1.5"),
+        ("S1D1_CAPTURE_SAMPLE", "x"),
+        ("S1D1_CAPTURE_MIN_MARGIN", "-0.1"),
+        ("S1D1_CAPTURE_MAX_MB", "0"),
+        ("S1D1_CAPTURE_RETENTION_DAYS", "0"),
+        ("S1D1_CAPTURE_QUEUE", "0"),
+    ],
+)
+def test_capture_settings_are_validated(name, value):
+    with pytest.raises(ConfigError, match=name):
+        Settings.from_env({name: value})

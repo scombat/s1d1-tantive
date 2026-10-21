@@ -57,6 +57,13 @@ def router(engine: Engine, settings: Settings, info: ModelInfo, native: TierSet)
             "max_queue": settings.max_queue,
             "threads": settings.threads,
             "inter_op_threads": settings.inter_op_threads,
+            "capture": {
+                "enabled": settings.capture_dir is not None,
+                "dir": settings.capture_dir,
+                "sample": settings.capture_sample if settings.capture_dir else None,
+                "min_margin": settings.capture_min_margin,
+                "retention_days": settings.capture_retention_days,
+            },
             "cost": None
             if cost is None
             else {"fixed_ms": round(cost.fixed_ms, 3), "per_token_ms": round(cost.per_token_ms, 4)},

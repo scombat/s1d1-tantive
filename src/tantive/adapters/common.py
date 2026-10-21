@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from fastapi import Request
 
 from tantive.ask import EmptyAsk, current_ask
+from tantive.capture import Capture
 from tantive.engine import Engine, Overloaded
 from tantive.errors import ApiError
 from tantive.model import ModelInfo, Outputs
@@ -29,11 +30,12 @@ class Core:
     catalogue: Catalogue
     info: ModelInfo
     native: TierSet
+    capture: Capture | None = None
 
     @classmethod
     def of(cls, request: Request) -> Core:
         s = request.app.state
-        return cls(s.engine, s.catalogue, s.info, s.native)
+        return cls(s.engine, s.catalogue, s.info, s.native, s.capture)
 
     @property
     def model_name(self) -> str:
@@ -97,6 +99,8 @@ def record(
     tier = core.native.tier_for(outputs.complexity_score)
     log_decision(route, fmt, outputs, tier, latency_ms, allowed, prompt)
     metrics().record_request(route, fmt, latency_ms / 1000, tier, outputs.prompt_tokens)
+    if core.capture is not None and prompt is not None:
+        core.capture.offer(prompt, route, fmt, outputs, tier, latency_ms)
     return tier
 
 

@@ -54,6 +54,12 @@ class Settings:
     port: int
     root_path: str
     otlp_endpoint: str | None
+    capture_dir: str | None = None
+    capture_sample: float = 1.0
+    capture_min_margin: float | None = None
+    capture_max_mb: int = 100
+    capture_retention_days: int | None = None
+    capture_queue: int = 10000
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Settings:
@@ -84,6 +90,12 @@ class Settings:
             port=_int(env, "S1D1_PORT", default=8788, minimum=1),
             root_path=env.get("S1D1_ROOT_PATH", ""),
             otlp_endpoint=env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or None,
+            capture_dir=env.get("S1D1_CAPTURE_DIR") or None,
+            capture_sample=_unit_float(env, "S1D1_CAPTURE_SAMPLE", default=1.0),
+            capture_min_margin=_optional_float(env, "S1D1_CAPTURE_MIN_MARGIN"),
+            capture_max_mb=_int(env, "S1D1_CAPTURE_MAX_MB", default=100, minimum=1),
+            capture_retention_days=_optional_int(env, "S1D1_CAPTURE_RETENTION_DAYS", minimum=1),
+            capture_queue=_int(env, "S1D1_CAPTURE_QUEUE", default=10000, minimum=1),
         )
 
 
@@ -124,4 +136,42 @@ def _positive_float(env: Mapping[str, str], name: str, *, default: float) -> flo
         raise ConfigError(f"{name}: {raw!r} is not a number") from None
     if not value > 0:
         raise ConfigError(f"{name}: {value} must be greater than 0")
+    return value
+
+
+def _optional_int(env: Mapping[str, str], name: str, *, minimum: int) -> int | None:
+    raw = env.get(name)
+    if raw is None or not raw.strip():
+        return None
+    return _int(env, name, default=0, minimum=minimum)
+
+
+def _optional_float(env: Mapping[str, str], name: str) -> float | None:
+    """A number of at least 0, or None when the variable is empty."""
+    raw = env.get(name)
+    if raw is None or not raw.strip():
+        return None
+    value = _float(raw, name)
+    if value < 0:
+        raise ConfigError(f"{name}: {value} is below the minimum 0")
+    return value
+
+
+def _unit_float(env: Mapping[str, str], name: str, *, default: float) -> float:
+    raw = env.get(name)
+    if raw is None or not raw.strip():
+        return default
+    value = _float(raw, name)
+    if not 0 <= value <= 1:
+        raise ConfigError(f"{name}: {value} must be between 0 and 1")
+    return value
+
+
+def _float(raw: str, name: str) -> float:
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ConfigError(f"{name}: {raw!r} is not a number") from None
+    if math.isnan(value):
+        raise ConfigError(f"{name}: {raw!r} is not a number")
     return value

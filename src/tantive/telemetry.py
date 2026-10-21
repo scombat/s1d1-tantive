@@ -32,7 +32,7 @@ def otlp_url(endpoint: str, signal: str) -> str | None:
 
 
 class Metrics:
-    """The five series of spec § 5, defined once as OpenTelemetry instruments: read by the Prometheus exporter for
+    """The series of spec § 5, defined once as OpenTelemetry instruments: read by the Prometheus exporter for
     `/metrics` and, when an OTLP endpoint is set, pushed by the OTLP metric exporter. One per process."""
 
     def __init__(self, otlp_endpoint: str | None) -> None:
@@ -69,6 +69,18 @@ class Metrics:
         self._overloaded = meter.create_counter(
             "tantive_overloaded", description="Requests rejected with 503 by the deadline scheduler"
         )
+        self._capture_written = meter.create_counter(
+            "tantive_capture_written", description="Decisions appended to the capture files"
+        )
+        self._capture_dropped = meter.create_counter(
+            "tantive_capture_dropped", description="Decisions lost by the capture (full queue or write error)"
+        )
+
+    def capture_written(self) -> None:
+        self._capture_written.add(1)
+
+    def capture_dropped(self) -> None:
+        self._capture_dropped.add(1)
 
     def record_request(self, route: str, fmt: str, seconds: float, tier: str | None, tokens: int | None) -> None:
         self._latency.record(seconds, {"route": route, "format": fmt})

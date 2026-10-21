@@ -76,7 +76,7 @@ def test_listing_before_any_deletion_and_abort_on_no(env):
     r = run(env, "--keep", "0.5.0", stdin="no\n")
     assert r.returncode == 1
     assert "delete  1 " in r.stdout and "kept version" in r.stdout
-    assert "Type \"yes\"" in r.stdout
+    assert 'Type "yes"' in r.stdout
     assert calls(env) == []
 
 
