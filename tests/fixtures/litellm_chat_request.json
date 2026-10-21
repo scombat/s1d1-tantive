@@ -1,0 +1,21 @@
+{
+  "model": "s1d1-classifier",
+  "messages": [
+    {"role": "system", "content": "You are a routing classifier. Answer with the tier only."},
+    {"role": "user", "content": "\nCaller system prompt, quoted as task context:\nYou are a coding agent.\n\nClassify this message:\nRefactor this parser\nand add tests"}
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "TierClassification",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "title": "TierClassification",
+        "additionalProperties": false,
+        "required": ["tier"],
+        "properties": {"tier": {"enum": ["SIMPLE", "MEDIUM", "COMPLEX", "REASONING"], "title": "Tier", "type": "string"}}
+      }
+    }
+  }
+}
