@@ -10,6 +10,7 @@ paths = ['''^cosign\.pub$''']
 
 [[allowlists]]
 description = "Terraform examples under deploy/ reference the input variable `var.s1d1_api_key`; only a match whose value is exactly that reference is allowed, and only in those files (a literal key on the same line, or anywhere else, is still reported)"
+condition = "AND"
 paths = ['''^deploy/[^/]+/terraform/.*\.tf$''']
 regexTarget = "match"
-regexes = ['''var\.s1d1_api_key\s*[,}]?\s*$''']
+regexes = ['''^[A-Za-z0-9_]*\s*=\s*var\.s1d1_api_key\s*[,}]?\s*$''']

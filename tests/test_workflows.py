@@ -259,8 +259,9 @@ def test_gitleaks_allowlists_are_narrow_and_explained():
     assert "rules" not in config  # no rule disabled
     by_path, by_regex = config["allowlists"]
     assert by_path["paths"] == [r"""^cosign\.pub$"""]  # the public key, by path
+    assert by_regex["condition"] == "AND"  # path AND value must match; OR would skip whole files
     assert by_regex["regexTarget"] == "match"  # the detected value only, never the whole line
-    assert by_regex["regexes"] == [r"""var\.s1d1_api_key\s*[,}]?\s*$"""]  # anchored: the value is the variable reference
+    assert by_regex["regexes"] == [r"""^[A-Za-z0-9_]*\s*=\s*var\.s1d1_api_key\s*[,}]?\s*$"""]  # anchored both ends
     assert by_regex["paths"] == [r"""^deploy/[^/]+/terraform/.*\.tf$"""]  # the Terraform examples only
     for allow in (by_path, by_regex):
         assert allow["description"].strip()
