@@ -10,7 +10,7 @@ ARG WEIGHTS_SRC=hub
 # The two pinned images, each in one place: python:3.12-slim (bookworm) and ghcr.io/astral-sh/uv:0.11.26, digests
 # resolved 2026-10-20 with `docker buildx imagetools inspect <image>`; later stages refer to these aliases.
 FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS python
-FROM ghcr.io/astral-sh/uv:0.11.26@sha256:3d868e555f8f1dbc324afa005066cd11e1053fc4743b9808ca8025283e65efa5 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.4@sha256:9f130421e930bfbdc563c00740466603f8723158e90297d07957c2294640262b AS uv
 
 # ---- weights from the Hub, at the pinned commit, verified before anything else uses them -------------------------
 FROM python AS weights-hub
