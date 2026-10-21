@@ -201,3 +201,14 @@ async def test_info_when_capture_is_off(client):
     assert (await client.get("/info")).json()["capture"] == {
         "enabled": False, "dir": None, "sample": None, "min_margin": None, "retention_days": None,
     }  # fmt: skip
+
+
+def test_the_guide_example_has_the_fields_of_a_line(tmp_path):
+    from pathlib import Path
+
+    guide = (Path(__file__).resolve().parents[1] / "docs" / "capture.md").read_text()
+    example = json.loads(guide.split("```json\n", 1)[1].split("\n```", 1)[0])
+    c = make(tmp_path)
+    offer(c)
+    c.close()
+    assert list(example) == list(lines(tmp_path)[0])

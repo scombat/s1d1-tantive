@@ -125,6 +125,27 @@
       "metadata": {
         "description": "OTEL_EXPORTER_OTLP_ENDPOINT: OpenTelemetry collector for traces and metrics. Empty = no export."
       }
+    },
+    "captureShareName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure Files share that receives the captured prompts (docs/capture.md). Empty = no capture. When set, the share is mounted on /capture and S1D1_CAPTURE_DIR=/capture. The prompts are user data: enable with consent."
+      }
+    },
+    "captureStorageAccount": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Storage account that holds the share. Required with captureShareName."
+      }
+    },
+    "captureStorageKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Key of that storage account. Stored by the Container Apps environment; never output. Required with captureShareName."
+      }
     }
   },
   "resources": [
@@ -162,7 +183,7 @@
                 "cpu": "[json(parameters('cpu'))]",
                 "memory": "[parameters('memory')]"
               },
-              "env": "[concat(createArray(createObject('name', 'S1D1_TIERS', 'value', parameters('tiers')), createObject('name', 'S1D1_FORMATS', 'value', parameters('formats')), createObject('name', 'S1D1_DEADLINE_MS', 'value', string(parameters('deadlineMs')))), if(empty(parameters('apiKey')), createArray(), createArray(createObject('name', 'S1D1_API_KEY', 'secretRef', 's1d1-api-key'))), if(empty(parameters('otlpEndpoint')), createArray(), createArray(createObject('name', 'OTEL_EXPORTER_OTLP_ENDPOINT', 'value', parameters('otlpEndpoint')))))]",
+              "env": "[concat(createArray(createObject('name', 'S1D1_TIERS', 'value', parameters('tiers')), createObject('name', 'S1D1_FORMATS', 'value', parameters('formats')), createObject('name', 'S1D1_DEADLINE_MS', 'value', string(parameters('deadlineMs')))), if(empty(parameters('apiKey')), createArray(), createArray(createObject('name', 'S1D1_API_KEY', 'secretRef', 's1d1-api-key'))), if(empty(parameters('otlpEndpoint')), createArray(), createArray(createObject('name', 'OTEL_EXPORTER_OTLP_ENDPOINT', 'value', parameters('otlpEndpoint')))), if(empty(parameters('captureShareName')), createArray(), createArray(createObject('name', 'S1D1_CAPTURE_DIR', 'value', '/capture'))))]",
               "probes": [
                 {
                   "type": "Liveness",
@@ -187,7 +208,8 @@
                   "failureThreshold": 6,
                   "periodSeconds": 10
                 }
-              ]
+              ],
+              "volumeMounts": "[if(empty(parameters('captureShareName')), createArray(), createArray(createObject('volumeName', 'capture', 'mountPath', '/capture')))]"
             }
           ],
           "scale": {
@@ -203,7 +225,25 @@
                 }
               }
             ]
-          }
+          },
+          "volumes": "[if(empty(parameters('captureShareName')), createArray(), createArray(createObject('name', 'capture', 'storageType', 'AzureFile', 'storageName', 's1d1-capture')))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments/storages', last(split(parameters('environmentId'), '/')), 's1d1-capture')]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('captureShareName')))]",
+      "type": "Microsoft.App/managedEnvironments/storages",
+      "apiVersion": "2026-07-01",
+      "name": "[format('{0}/s1d1-capture', last(split(parameters('environmentId'), '/')))]",
+      "properties": {
+        "azureFile": {
+          "accountName": "[parameters('captureStorageAccount')]",
+          "accountKey": "[parameters('captureStorageKey')]",
+          "shareName": "[parameters('captureShareName')]",
+          "accessMode": "ReadWrite"
         }
       }
     }

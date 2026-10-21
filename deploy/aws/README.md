@@ -43,6 +43,7 @@ smallest CPU/memory pair that holds it is 256 CPU with 512 MiB, which leaves alm
 | `Formats`, `DeadlineMs` | `systemone,decisions,classify`, 800 | `S1D1_FORMATS`, `S1D1_DEADLINE_MS` |
 | `ApiKey` | empty | `S1D1_API_KEY`, `NoEcho`, kept in Secrets Manager and injected as a container secret (it is never a plain environment variable); empty = no key |
 | `OtlpEndpoint` | empty | `OTEL_EXPORTER_OTLP_ENDPOINT`, optional: an OpenTelemetry collector for traces and metrics; empty = no export, the variable is not set |
+| `CaptureFileSystemId` | empty | optional: an EFS file system mounted on `/capture` with `S1D1_CAPTURE_DIR`; see [capture.md](../../docs/capture.md) |
 | `Cpu`, `Memory` | 2048, 4096 | task size in CPU units and MiB; the pair must be one Fargate allows |
 | `DesiredCount` | 1 | number of tasks |
 

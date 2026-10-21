@@ -46,6 +46,7 @@ environment, registry, network or log workspace.
 | `deadlineMs` | int | 800 | `S1D1_DEADLINE_MS` |
 | `apiKey` | securestring | empty | `S1D1_API_KEY`; empty = no key, no secret |
 | `otlpEndpoint` | string | empty | `OTEL_EXPORTER_OTLP_ENDPOINT`; empty = no export |
+| `captureShareName`, `captureStorageAccount`, `captureStorageKey` | string, string, securestring | empty | optional: mount this Azure Files share on `/capture` and set `S1D1_CAPTURE_DIR`; see [capture.md](../../docs/capture.md) |
 
 **Warning:** `ingressExternal=true` without an `apiKey` publishes an unauthenticated endpoint on the internet: the
 service only checks a key when `S1D1_API_KEY` is set, and the template sets it only when `apiKey` is not empty.

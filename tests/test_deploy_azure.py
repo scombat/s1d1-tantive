@@ -55,6 +55,9 @@ def test_parameters_names_types_defaults():
         "deadlineMs": ("int", 800),
         "apiKey": ("securestring", ""),
         "otlpEndpoint": ("string", ""),
+        "captureShareName": ("string", ""),
+        "captureStorageAccount": ("string", ""),
+        "captureStorageKey": ("securestring", ""),
     }
     assert set(p) == set(expected)
     for key, (type_, default) in expected.items():
@@ -69,6 +72,7 @@ def test_secure_parameters():
     p = load()["parameters"]
     assert p["registryPassword"]["type"] == "securestring"
     assert p["apiKey"]["type"] == "securestring"
+    assert p["captureStorageKey"]["type"] == "securestring"
 
 
 def test_tiers_has_no_default():
@@ -211,3 +215,22 @@ def test_trivy_config_clean():
         timeout=300,
     )
     assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_capture_is_off_unless_a_share_is_given():
+    t = load()
+    (storage,) = [r for r in t["resources"] if r["type"] == "Microsoft.App/managedEnvironments/storages"]
+    assert storage["condition"] == "[not(empty(parameters('captureShareName')))]"
+    azure_file = storage["properties"]["azureFile"]
+    assert azure_file["shareName"] == "[parameters('captureShareName')]"
+    assert azure_file["accountKey"] == "[parameters('captureStorageKey')]"
+    assert azure_file["accessMode"] == "ReadWrite"
+    the_app = next(r for r in t["resources"] if r["type"] == "Microsoft.App/containerApps")
+    assert "storages" in json.dumps(the_app["dependsOn"])
+    template = the_app["properties"]["template"]
+    c = template["containers"][0]
+    for expression in (c["env"], c["volumeMounts"], template["volumes"]):
+        assert "empty(parameters('captureShareName'))" in expression
+    assert "S1D1_CAPTURE_DIR', 'value', '/capture'" in c["env"]
+    assert "'mountPath', '/capture'" in c["volumeMounts"]
+    assert "'storageType', 'AzureFile', 'storageName', 's1d1-capture'" in template["volumes"]

@@ -22,6 +22,7 @@ names it.
 | `S1D1_DEADLINE_MS`, `S1D1_MAX_QUEUE` | 800, 32 | shed a request (503 + `Retry-After: 1`) when its expected wait exceeds the deadline or the queue is full |
 | `S1D1_API_KEY` | none | when set, adapter routes need `Authorization: Bearer <key>` (or `x-api-key`) |
 | `S1D1_LOG_PROMPTS` | 0 | 1 to write the classified text in the decision log line |
+| `S1D1_CAPTURE_DIR`, `S1D1_CAPTURE_SAMPLE`, `S1D1_CAPTURE_MIN_MARGIN`, `S1D1_CAPTURE_MAX_MB`, `S1D1_CAPTURE_RETENTION_DAYS`, `S1D1_CAPTURE_QUEUE` | none, 1.0, empty, 100, empty, 10000 | keep the classified prompts in JSONL files, off unless the folder is set ([capture.md](capture.md)) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | none | enables OTLP traces and metrics (the standard `OTEL_*` variables apply) |
 | `S1D1_HOST`, `S1D1_PORT`, `S1D1_ROOT_PATH` | `0.0.0.0`, 8788, empty | network |
 
@@ -84,5 +85,5 @@ queue.
 ## Metrics and tracing
 
 `GET /metrics` exposes `tantive_decisions_total` (by tier), `tantive_request_latency_seconds` (queue included),
-`tantive_prompt_tokens` and `tantive_in_flight_requests`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
+`tantive_prompt_tokens` `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
 and traces over OTLP; `/health`, `/ready` and `/metrics` are not traced. Logs are JSON lines on standard output.

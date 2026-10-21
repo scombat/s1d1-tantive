@@ -59,14 +59,17 @@ def test_parameters_names_and_defaults():
     p = load()["Parameters"]
     assert set(p) == {
         "VpcId", "SubnetIds", "AssignPublicIp", "IngressCidr", "Image", "RegistryUsername", "RegistryPassword",
-        "Tiers", "Formats", "DeadlineMs", "ApiKey", "OtlpEndpoint", "Cpu", "Memory", "DesiredCount",
+        "Tiers", "Formats", "DeadlineMs", "ApiKey", "OtlpEndpoint", "CaptureFileSystemId", "Cpu", "Memory",
+        "DesiredCount",
     }  # fmt: skip
     for name in ("VpcId", "SubnetIds", "AssignPublicIp", "IngressCidr", "Tiers"):
         assert "Default" not in p[name], f"{name} depends on the user's side: no default"
     assert p["AssignPublicIp"]["AllowedValues"] == ["ENABLED", "DISABLED"]
     assert p["Formats"]["Default"] == "systemone,decisions,classify"
     assert p["Cpu"]["Default"] == "2048" and p["Memory"]["Default"] == "4096" and p["DesiredCount"]["Default"] == 1
-    assert [p[k]["Default"] for k in ("RegistryUsername", "RegistryPassword", "ApiKey")] == ["", "", ""]
+    assert [p[k]["Default"] for k in ("RegistryUsername", "RegistryPassword", "ApiKey", "CaptureFileSystemId")] == [
+        ""
+    ] * 4
 
 
 def test_secret_parameters_are_no_echo():
@@ -184,3 +187,19 @@ def test_trivy_config_clean():
         timeout=300,
     )
     assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_capture_mounts_efs_only_when_a_file_system_is_given():
+    t = load()
+    assert t["Conditions"]["HasCapture"] == {"Fn::Not": [{"Fn::Equals": [{"Ref": "CaptureFileSystemId"}, ""]}]}
+    (task,) = resources("AWS::ECS::TaskDefinition").values()
+    condition, (volume,), nothing = task["Properties"]["Volumes"]["Fn::If"]
+    assert condition == "HasCapture" and nothing == {"Ref": "AWS::NoValue"}
+    efs = volume["EFSVolumeConfiguration"]
+    assert efs["FilesystemId"] == {"Ref": "CaptureFileSystemId"} and efs["TransitEncryption"] == "ENABLED"
+    c = container()
+    condition, (mount,), _ = c["MountPoints"]["Fn::If"]
+    assert condition == "HasCapture"
+    assert (mount["SourceVolume"], mount["ContainerPath"]) == (volume["Name"], "/capture")
+    env = [e for e in c["Environment"] if "Fn::If" in e]
+    assert {"Name": "S1D1_CAPTURE_DIR", "Value": "/capture"} in [e["Fn::If"][1] for e in env]

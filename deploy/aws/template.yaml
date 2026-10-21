@@ -63,6 +63,14 @@ Parameters:
     Default: ""
     Description: >-
       OTEL_EXPORTER_OTLP_ENDPOINT, optional: an OpenTelemetry collector for traces and metrics. Empty = no export.
+  CaptureFileSystemId:
+    Type: String
+    Default: ""
+    Description: >-
+      Optional EFS file system (fs-...) that receives the captured prompts (docs/capture.md). Empty = no capture. When
+      set, it is mounted on /capture with S1D1_CAPTURE_DIR=/capture. Its mount targets must accept NFS (2049) from the
+      service's security group. The prompts are user data: enable with consent.
+    AllowedPattern: '^(fs-[0-9a-f]+)?$'
   Cpu:
     Type: String
     Default: "2048"
@@ -84,6 +92,7 @@ Conditions:
     - !Not [!Equals [!Ref RegistryPassword, ""]]
   HasApiKey: !Not [!Equals [!Ref ApiKey, ""]]
   HasOtlpEndpoint: !Not [!Equals [!Ref OtlpEndpoint, ""]]
+  HasCapture: !Not [!Equals [!Ref CaptureFileSystemId, ""]]
   HasSecrets: !Or [!Condition HasRegistryCredentials, !Condition HasApiKey]
 
 Resources:
@@ -146,6 +155,13 @@ Resources:
       Cpu: !Ref Cpu
       Memory: !Ref Memory
       ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      Volumes: !If
+        - HasCapture
+        - - Name: capture
+            EFSVolumeConfiguration:
+              FilesystemId: !Ref CaptureFileSystemId
+              TransitEncryption: ENABLED
+        - !Ref "AWS::NoValue"
       ContainerDefinitions:
         - Name: tantive
           Image: !Ref Image
@@ -170,6 +186,16 @@ Resources:
               - Name: OTEL_EXPORTER_OTLP_ENDPOINT
                 Value: !Ref OtlpEndpoint
               - !Ref "AWS::NoValue"
+            - !If
+              - HasCapture
+              - Name: S1D1_CAPTURE_DIR
+                Value: /capture
+              - !Ref "AWS::NoValue"
+          MountPoints: !If
+            - HasCapture
+            - - SourceVolume: capture
+                ContainerPath: /capture
+            - !Ref "AWS::NoValue"
           Secrets: !If
             - HasApiKey
             - - Name: S1D1_API_KEY
