@@ -20,6 +20,9 @@
   does not stream, a classification is one response.
 - Dependabot keeps the GitHub Actions, the Docker bases and the uv lockfile up to date: weekly, on Monday, one grouped
   pull request per ecosystem for the minor and patch updates, at most five open per ecosystem (`.github/dependabot.yml`).
+- Contribution pages: `CONTRIBUTING.md` (issues, the change workflow, the commit style, the licence of contributions),
+  `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), issue forms for bugs and questions with blank issues off and
+  vulnerabilities sent to the security advisory, and a pull request template. The README links both pages.
 
 ## 0.7.0 — 2026-10-21
 

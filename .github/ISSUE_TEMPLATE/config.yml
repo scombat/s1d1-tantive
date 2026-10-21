@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/scombat/s1d1-tantive/security/advisories/new
+    about: Privately, through a security advisory, never in a public issue (see SECURITY.md).

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 GUIDES = sorted((ROOT / "docs").glob("*.md"))
@@ -20,6 +22,9 @@ MARKDOWN = [
     ROOT / "MAINTAINERS.md",
     ROOT / "CHANGELOG.md",
     ROOT / "SECURITY.md",
+    ROOT / "CONTRIBUTING.md",
+    ROOT / "CODE_OF_CONDUCT.md",
+    ROOT / ".github/PULL_REQUEST_TEMPLATE.md",
 ]
 
 SECTIONS = [
@@ -98,7 +103,10 @@ def test_docs_links_resolve():
 
 def test_readme_links_every_guide():
     text = README.read_text()
-    for guide in [*GUIDES, ROOT / "MAINTAINERS.md", ROOT / "CHANGELOG.md"]:
+    for guide in [
+        *GUIDES,
+        *(ROOT / n for n in ("MAINTAINERS.md", "CHANGELOG.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md")),
+    ]:
         assert guide.relative_to(ROOT).as_posix() in text, guide.name
     assert {g.name for g in GUIDES} >= {
         "getting-started.md",
@@ -134,7 +142,7 @@ def test_badges_cover_release_licence_slsa_and_hub():
 
 
 def test_guides_answer_one_question_and_stay_short():
-    for md in [*GUIDES, *DEPLOY_READMES, ROOT / "MAINTAINERS.md"]:
+    for md in [*GUIDES, *DEPLOY_READMES, ROOT / "MAINTAINERS.md", ROOT / "CONTRIBUTING.md"]:
         body = [line for line in lines(md) if line.strip() and not line.startswith("#")]
         assert body[0].startswith("This page shows how to"), md.relative_to(ROOT)
         assert len(lines(md)) <= 130, md.relative_to(ROOT)
@@ -182,3 +190,42 @@ def test_llms_txt_links_resolve_and_cover_the_guides():
     for guide in GUIDES:
         assert guide.relative_to(ROOT).as_posix() in targets, guide.name
     assert "docs/sizing.md" in text and "docs/use-cases.md" in text
+
+
+ISSUE_TEMPLATES = ROOT / ".github/ISSUE_TEMPLATE"
+
+
+def test_issue_forms_ask_for_the_same_facts():
+    for name in ("bug_report.yml", "question.yml"):
+        form = yaml.safe_load((ISSUE_TEMPLATES / name).read_text())
+        assert form["name"] and form["description"], name
+        labels = [f["attributes"]["label"] for f in form["body"] if f["type"] != "markdown"]
+        assert labels == [
+            "Version or image tag",
+            "Variant",
+            "Deployment target",
+            "What you did",
+            "What you saw",
+            "What you expected",
+        ], name
+        assert all(f.get("id") for f in form["body"] if f["type"] != "markdown"), name
+
+
+def test_issue_config_sends_vulnerabilities_to_the_advisory_of_security_md():
+    config = yaml.safe_load((ISSUE_TEMPLATES / "config.yml").read_text())
+    assert config["blank_issues_enabled"] is False
+    (link,) = config["contact_links"]
+    assert link["url"] in SECURITY.read_text()
+
+
+def test_code_of_conduct_is_the_contributor_covenant_with_the_security_contact():
+    text = (ROOT / "CODE_OF_CONDUCT.md").read_text()
+    assert text.startswith("# Contributor Covenant Code of Conduct\n")
+    assert "version 2.1" in text and "[INSERT CONTACT METHOD]" not in text
+    email = re.search(r"`([^`]+@[^`]+)`", SECURITY.read_text()).group(1)
+    assert f"enforcement at {email}." in text
+
+
+def test_pull_request_template_has_three_checkboxes():
+    text = (ROOT / ".github/PULL_REQUEST_TEMPLATE.md").read_text()
+    assert text.count("- [ ] ") == 3

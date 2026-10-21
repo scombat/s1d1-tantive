@@ -1,0 +1,45 @@
+name: Question
+description: How to deploy, configure or call the service, or why it answered what it answered.
+labels: [question]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version or image tag
+      description: "`GET /info` gives the version; or the tag you pulled."
+      placeholder: 0.7.0-small-onnx-int8
+  - type: dropdown
+    id: variant
+    attributes:
+      label: Variant
+      options: [full, compact, small, tiny, I do not know]
+  - type: dropdown
+    id: target
+    attributes:
+      label: Deployment target
+      options:
+        - docker run or compose
+        - Azure
+        - Hugging Face Space
+        - Render
+        - Google Cloud Run
+        - AWS
+        - AWS Lambda
+        - Heroku
+        - other
+        - not deployed yet
+  - type: textarea
+    id: did
+    attributes:
+      label: What you did
+      description: What you are trying to do, and what you tried. No API key.
+    validations:
+      required: true
+  - type: textarea
+    id: saw
+    attributes:
+      label: What you saw
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected

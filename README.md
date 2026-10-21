@@ -43,7 +43,7 @@ A button that opens a guide instead of the provider has one step left for you, d
 - [Use cases](docs/use-cases.md): six ready-made configurations
 - [Capture](docs/capture.md): keep the classified prompts to label them again
 - [Verify the image](docs/verify.md): signature, provenance, weights
-- Deploy guides: [`deploy/`](deploy/); release and contribution notes: [MAINTAINERS.md](MAINTAINERS.md); [CHANGELOG.md](CHANGELOG.md)
+- Deploy guides: [`deploy/`](deploy/); release notes: [MAINTAINERS.md](MAINTAINERS.md); contributing: [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md); [CHANGELOG.md](CHANGELOG.md)
 
 ## Quickstart
 

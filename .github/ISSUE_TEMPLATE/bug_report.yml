@@ -1,0 +1,59 @@
+name: Bug report
+description: The service does something it should not, or fails to do what the docs say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "A vulnerability does not go here: report it privately, as SECURITY.md says."
+  - type: input
+    id: version
+    attributes:
+      label: Version or image tag
+      description: "`GET /info` gives the version; or the tag you pulled."
+      placeholder: 0.7.0-small-onnx-int8
+    validations:
+      required: true
+  - type: dropdown
+    id: variant
+    attributes:
+      label: Variant
+      options: [full, compact, small, tiny, I do not know]
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Deployment target
+      options:
+        - docker run or compose
+        - Azure
+        - Hugging Face Space
+        - Render
+        - Google Cloud Run
+        - AWS
+        - AWS Lambda
+        - Heroku
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: did
+    attributes:
+      label: What you did
+      description: The request (`curl` or client), the `S1D1_*` variables you set. No API key.
+    validations:
+      required: true
+  - type: textarea
+    id: saw
+    attributes:
+      label: What you saw
+      description: The response or the error, and the relevant log lines.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
