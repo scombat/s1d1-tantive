@@ -17,6 +17,10 @@ Two kinds of test need more: `slow` tests run the real model (`S1D1_TEST_MODEL_D
 `S1D1_TEST_HUB_LOADER=<research repo>/release/s1d1-router` for the parity check with the Hub loader), `docker` tests
 build and run the image. CI runs `ruff`, `actionlint`, `hadolint` and `pytest -m "not slow and not docker"`.
 
+Dependency updates arrive from Dependabot (`.github/dependabot.yml`) every Monday: one pull request per ecosystem
+(GitHub Actions, the Docker bases, the uv lockfile) groups the minor and patch bumps, majors come one by one, and pins
+keep their SHA or digest. A merged update is not a release: the Trivy gate still decides when the next tag builds.
+
 To build an image locally, from the Hub (default) or from a folder `weights/<variant>/` you provide
 (`WEIGHTS_SRC=local`); either way every file is verified against `checksums/<variant>.json` and a mismatch fails the
 build with the file name:

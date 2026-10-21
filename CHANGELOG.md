@@ -18,6 +18,8 @@
   section of `docs/formats.md`.
 - chat-completions refuses `"stream": true` with a 400 in the usual error shape instead of ignoring it: this endpoint
   does not stream, a classification is one response.
+- Dependabot keeps the GitHub Actions, the Docker bases and the uv lockfile up to date: weekly, on Monday, one grouped
+  pull request per ecosystem for the minor and patch updates, at most five open per ecosystem (`.github/dependabot.yml`).
 
 ## 0.7.0 — 2026-10-21
 

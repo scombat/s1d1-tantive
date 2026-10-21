@@ -283,3 +283,16 @@ def test_release_job_publishes_the_github_release_from_the_changelog():
 
 def test_maintainers_notes_mention_the_release_job():
     assert "`release` job" in (ROOT / "MAINTAINERS.md").read_text()
+
+
+def test_dependabot_updates_three_ecosystems_weekly_grouped():
+    config = yaml.safe_load((ROOT / ".github/dependabot.yml").read_text())
+    updates = config["updates"]
+    assert config["version"] == 2
+    assert [u["package-ecosystem"] for u in updates] == ["github-actions", "docker", "uv"]
+    assert {u["directory"] for u in updates} == {"/"}
+    assert {(u["schedule"]["interval"], u["schedule"]["day"]) for u in updates} == {("weekly", "monday")}
+    for u in updates:
+        assert u["open-pull-requests-limit"] == 5
+        (group,) = u["groups"].values()
+        assert group["update-types"] == ["minor", "patch"]
