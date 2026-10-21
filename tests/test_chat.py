@@ -180,3 +180,13 @@ async def test_chat_single_option_enum_400(client_chat):
 async def test_chat_reports_pieces_in_a_header(client_chat):
     r = await client_chat.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "x"}]})
     assert r.headers["x-s1d1-pieces"] == "1"
+
+
+async def test_stream_true_is_400(client_chat):
+    body = {"messages": [{"role": "user", "content": "hi"}], "stream": True}
+    r = await client_chat.post("/v1/chat/completions", json=body)
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "invalid_request_error"
+    assert "does not stream" in r.json()["error"]["message"]
+    body["stream"] = False
+    assert (await client_chat.post("/v1/chat/completions", json=body)).status_code == 200

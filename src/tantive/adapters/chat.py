@@ -2,7 +2,8 @@
 
 POST /v1/chat/completions and /chat/completions: the last user message, cut at LiteLLM's marker, is classified; the
 tier names allowed by `response_format`'s JSON schema (the `tier` enum) pick the tier set, the native set otherwise;
-the answer is `{"tier": "<name>"}` as the assistant message. GET /v1/models and /models list `s1d1-classifier`.
+the answer is `{"tier": "<name>"}` as the assistant message. `"stream": true` is 400: a classification is one
+response. GET /v1/models and /models list `s1d1-classifier`.
 Port of release/s1d1-router/integrations/litellm/serve_litellm.py.
 """
 
@@ -33,6 +34,7 @@ class ChatRequest(BaseModel):
     messages: list[dict[str, Any]]
     model: str | None = None
     response_format: Any = None
+    stream: bool | None = None
 
 
 def last_user_text(messages: list[dict[str, Any]]) -> str:
@@ -82,6 +84,8 @@ def router(_app: FastAPI) -> APIRouter:
     r = APIRouter(tags=["chat"])
 
     async def chat_completions(request: Request, body: ChatRequest) -> JSONResponse:
+        if body.stream:
+            raise ApiError(400, "this endpoint does not stream: a classification is one response")
         core = Core.of(request)
         allowed = allowed_tiers(body.response_format)
         if allowed is None:

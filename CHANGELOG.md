@@ -16,6 +16,8 @@
   too long text, shed), instead of failing the whole batch. 200 when at least one item succeeded, 422 when every item
   failed; body-level errors are unchanged. Metrics and `decision` lines count the items that ran. Guide: the Batch
   section of `docs/formats.md`.
+- chat-completions refuses `"stream": true` with a 400 in the usual error shape instead of ignoring it: this endpoint
+  does not stream, a classification is one response.
 
 ## 0.7.0 — 2026-10-21
 

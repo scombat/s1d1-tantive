@@ -71,8 +71,8 @@ curl -s localhost:8788/v1/chat/completions -H 'content-type: application/json' -
 ```
 
 The last user message is classified. The tier set is the one named by the `tier` enum of `response_format`'s JSON
-schema, else the native set. The response also carries `X-S1D1-Score`, `X-S1D1-Task`, `X-S1D1-Needs-Tools` and
-`X-S1D1-Pieces` and `X-S1D1-Latency-Ms` headers.
+schema, else the native set. Headers: `X-S1D1-Score`, `X-S1D1-Task`, `X-S1D1-Needs-Tools`, `X-S1D1-Pieces`,
+`X-S1D1-Latency-Ms`. No streaming: `"stream": true` is a 400, since a classification is one response.
 
 ## vLLM `/classify`
 
