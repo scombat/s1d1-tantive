@@ -34,7 +34,7 @@ TAG_ONLY = ("slsa-framework/slsa-github-generator/",)
 
 
 def test_every_action_is_pinned_to_a_commit_sha():
-    for name in ("ci.yml", "build.yml"):
+    for name in ("ci.yml", "build.yml", "image.yml"):
         for ref in uses_of(load(name)):
             assert "@" in ref, f"{name}: {ref} is not pinned"
             repo, version = ref.rsplit("@", 1)
@@ -45,7 +45,7 @@ def test_every_action_is_pinned_to_a_commit_sha():
 
 
 def test_every_sha_pin_carries_its_tag_as_a_comment():
-    for name in ("ci.yml", "build.yml"):
+    for name in ("ci.yml", "build.yml", "image.yml"):
         for line in (ROOT / ".github" / "workflows" / name).read_text().splitlines():
             m = re.search(r"uses: \S+@([0-9a-f]{40})(.*)$", line)
             if m:
@@ -296,3 +296,32 @@ def test_dependabot_updates_three_ecosystems_weekly_grouped():
         assert u["open-pull-requests-limit"] == 5
         (group,) = u["groups"].values()
         assert group["update-types"] == ["minor", "patch"]
+
+
+def test_image_workflow_checks_the_image_on_pull_requests_that_touch_it():
+    image = load("image.yml")
+    on = image[True] if True in image else image["on"]
+    assert on["pull_request"]["branches"] == ["main"]
+    assert on["pull_request"]["paths"] == [
+        "Dockerfile",
+        "uv.lock",
+        "pyproject.toml",
+        "checksums/**",
+        "src/tantive/verify.py",
+        ".github/workflows/image.yml",
+    ]
+    assert "workflow_dispatch" in on
+    assert "push" not in on
+    assert image["permissions"] == {"contents": "read"}
+    assert image["concurrency"]["cancel-in-progress"] is True
+    (job,) = image["jobs"].values()
+    assert job["timeout-minutes"] == 30
+    assert "uv run pytest -m docker" in "\n".join(str(s.get("run", "")) for s in job["steps"])
+
+
+def test_image_workflow_publishes_nothing():
+    image = load("image.yml")
+    text = "\n".join(str(s.get("uses", "")) + str(s.get("run", "")) for s in steps_of(image, "image")).lower()
+    for word in ("login", "cosign", "attest", "provenance", "push"):
+        assert word not in text, word
+    assert set(image["permissions"]) == {"contents"}

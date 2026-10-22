@@ -21,6 +21,10 @@ Dependency updates arrive from Dependabot (`.github/dependabot.yml`) every Monda
 (GitHub Actions, the Docker bases, the uv lockfile) groups the minor and patch bumps, majors come one by one, and pins
 keep their SHA or digest. A merged update is not a release: the Trivy gate still decides when the next tag builds.
 
+The `image` workflow builds and tests the small image on pull requests that touch the Dockerfile, the lockfile or the
+pinned weights, so a Dependabot bump of the base image is verified before it merges. The `docker` tests run locally the
+same way: `uv run pytest -m docker -q`.
+
 To build an image locally, from the Hub (default) or from a folder `weights/<variant>/` you provide
 (`WEIGHTS_SRC=local`); either way every file is verified against `checksums/<variant>.json` and a mismatch fails the
 build with the file name:
