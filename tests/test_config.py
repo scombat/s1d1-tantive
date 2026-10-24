@@ -199,3 +199,17 @@ def test_capture_token_never_shows_in_a_repr():
     s = Settings.from_env({"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": "/c", "S1D1_CAPTURE_TOKEN": "s3cret"})
     assert s.capture_token == "s3cret"
     assert "s3cret" not in repr(s)
+
+
+def test_capture_url_with_credentials_is_refused_and_not_echoed(tmp_path):
+    env = {"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_CAPTURE_URL": "https://user:pw@host.example/ingest"}
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_TOKEN") as e:
+        Settings.from_env(env)
+    assert "pw" not in str(e.value) and "host.example" not in str(e.value)
+
+
+def test_capture_url_errors_do_not_echo_the_url(tmp_path):
+    env = {"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_CAPTURE_URL": "http://public.example/ingest"}
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_URL") as e:
+        Settings.from_env(env)
+    assert "public.example" not in str(e.value)

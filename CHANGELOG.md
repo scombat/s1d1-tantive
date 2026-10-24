@@ -15,7 +15,7 @@
 
 - New `image` workflow: pull requests that touch the Dockerfile, `uv.lock`, `pyproject.toml`, `checksums/` or `verify.py`
   build the small image from the Hub weights and run the `docker` tests (amd64, nothing pushed or signed).
-- Image references move to 0.7.0 in the README, the guides, the deployment templates and the Space files, so the templates
+- Image references move to 0.8.0 in the README, the guides, the deployment templates and the Space files, so the templates
   pull images with the capture. `CITATION.cff` drops its `version` and `date-released`: the citation names the repository,
   the release page names the version.
 - The version is read from the package metadata: `tantive.__version__` comes from `pyproject.toml` through
