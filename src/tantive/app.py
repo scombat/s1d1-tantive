@@ -16,13 +16,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from tantive import service
 from tantive.adapters import ADAPTERS
 from tantive.capture import Capture
-from tantive.send import Sender
 from tantive.config import ConfigError, Settings, cpu_count_from_cgroup
 from tantive.engine import Engine
 from tantive.errors import ApiError, error_response
 from tantive.longprompt import LongPromptPolicy
 from tantive.model import Model, ModelInfo
 from tantive.questions import Catalogue
+from tantive.send import Sender
 from tantive.telemetry import configure_otel, log_event
 from tantive.tiers import TierSet, native_set
 

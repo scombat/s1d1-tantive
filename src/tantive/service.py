@@ -15,7 +15,13 @@ from tantive.telemetry import SERVICE_NAME
 from tantive.tiers import TierSet
 
 
-def router(engine: Engine, settings: Settings, info: ModelInfo, native: TierSet, sender: Sender | None = None) -> APIRouter:
+def router(
+    engine: Engine,
+    settings: Settings,
+    info: ModelInfo,
+    native: TierSet,
+    sender: Sender | None = None,
+) -> APIRouter:
     r = APIRouter(tags=["service"])
 
     @r.get("/health")

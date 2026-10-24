@@ -131,7 +131,9 @@ def _check_capture_url(url: str) -> None:
     except ValueError:
         raise ConfigError("S1D1_CAPTURE_URL is not a valid URL") from None
     if userinfo:
-        raise ConfigError("S1D1_CAPTURE_URL must not carry credentials (user:password@); use S1D1_CAPTURE_TOKEN instead")
+        raise ConfigError(
+            "S1D1_CAPTURE_URL must not carry credentials (user:password@); use S1D1_CAPTURE_TOKEN instead"
+        )
     if "?" in url or "#" in url:
         raise ConfigError("S1D1_CAPTURE_URL must not carry a query string or a fragment (? or #)")
     if parts.scheme == "https" and host:
