@@ -21,6 +21,7 @@ from tantive.engine import Engine
 from tantive.errors import ApiError, error_response
 from tantive.longprompt import LongPromptPolicy
 from tantive.model import Model, ModelInfo
+from tantive.prefix import PrefixMiddleware
 from tantive.questions import Catalogue
 from tantive.send import Sender
 from tantive.telemetry import configure_otel, log_event
@@ -196,6 +197,7 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
     app.state.sender = sender
     install_error_handlers(app)
     app.add_middleware(_BodySizeLimit, limit=MAX_BODY_BYTES)
+    app.add_middleware(PrefixMiddleware, prefix=settings.root_path)
     app.include_router(service.router(engine, settings, info, native, sender))
     auth = require_api_key(settings)
     for name in sorted(settings.formats):

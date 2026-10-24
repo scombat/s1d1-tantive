@@ -31,6 +31,9 @@
   too long text, shed), instead of failing the whole batch. 200 when at least one item succeeded, 503 + `Retry-After` when
   every item was shed, 422 when every item failed otherwise; body-level errors are unchanged. Metrics and `decision` lines count the items that ran. Guide: the Batch
   section of `docs/formats.md`.
+- `S1D1_ROOT_PATH` no longer goes to uvicorn, which prepended the prefix to a path that already carried it (404 on
+  `/api/v1/systemone`): a middleware now accepts request paths with and without the prefix (`/api/...` and `/...`), for a
+  proxy or tunnel that forwards the prefix unchanged as for one that strips it.
 - chat-completions refuses `"stream": true` with a 400 in the usual error shape instead of ignoring it: this endpoint
   does not stream, a classification is one response.
 - Dependabot keeps the GitHub Actions, the Docker bases and the uv lockfile up to date: weekly, on Monday, one grouped
