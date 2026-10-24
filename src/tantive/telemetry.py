@@ -85,6 +85,10 @@ class Metrics:
             "tantive_capture_send_rejected",
             description="Captured lines given up: refused by the ingestion (400, 413), unreadable or oversized",
         )
+        self._capture_send_pending = meter.create_gauge(
+            "tantive_capture_send_pending_bytes",
+            description="Bytes of capture files after the send cursor (updated after each read by the sender)",
+        )
 
     def capture_written(self) -> None:
         self._capture_written.add(1)
@@ -100,6 +104,9 @@ class Metrics:
 
     def capture_send_rejected(self, n: int) -> None:
         self._capture_send_rejected.add(n)
+
+    def capture_send_pending(self, n: int) -> None:
+        self._capture_send_pending.set(n)
 
     def record_request(self, route: str, fmt: str, seconds: float, tier: str | None, tokens: int | None) -> None:
         self._latency.record(seconds, {"route": route, "format": fmt})

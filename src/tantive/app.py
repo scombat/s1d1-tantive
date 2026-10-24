@@ -153,6 +153,7 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
             retention_days=settings.capture_retention_days,
             queue_size=settings.capture_queue,
             terms_version=settings.terms_version,
+            send=settings.capture_send,
         )
         if settings.capture_dir
         else None

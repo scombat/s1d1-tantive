@@ -7,9 +7,11 @@
 - Opt-in sending of the captured lines to a community ingestion: `S1D1_CAPTURE_SEND=1` (off by default, needs
   `S1D1_CAPTURE_DIR`) starts a thread that posts the capture files in NDJSON batches to `S1D1_CAPTURE_URL` (default
   `https://s1d1.qoo.gy/ingest`, `https` only except localhost), with an optional `S1D1_CAPTURE_TOKEN`,
-  `S1D1_CAPTURE_BATCH` and `S1D1_CAPTURE_SEND_SECONDS`. At-least-once delivery with a cursor in the capture folder,
+  `S1D1_CAPTURE_BATCH` and `S1D1_CAPTURE_SEND_SECONDS`. Only the lines captured while sending is on are sent (they
+  carry `"send": true`), never what was captured before or while it was off. At-least-once delivery with a cursor in the capture folder,
   back-off on failure, no redirect followed, and the token and prompts kept out of logs, `/info` and OpenTelemetry. New
-  counters `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total`;
+  counters `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total`
+  and the gauge `tantive_capture_send_pending_bytes`;
   `/info` reports `capture.send` (`enabled`, `url`, `instance_id`). `S1D1_TERMS_VERSION` (default `v1`) is written in
   each captured line. Guide: the sending section of `docs/capture.md`.
 

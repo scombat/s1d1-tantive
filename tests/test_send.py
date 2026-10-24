@@ -14,11 +14,12 @@ import pytest
 from tantive import __version__
 from tantive.send import Cursor, Sender, Spool, instance_id, post_ndjson, to_ingest
 from tantive.telemetry import configure_logging
-from tests.test_capture import counter
+from tests.test_capture import counter, make, offer
 
 
-def row(ident: str, **extra) -> dict:
-    return {
+def row(ident: str, send: bool = True, **extra) -> dict:
+    """A captured line; `send=True` (the default) marks it as written while sending was on."""
+    out = {
         "time": "2026-10-24T10:00:00.000Z",
         "id": ident,
         "prompt": f"prompt {ident}",
@@ -39,10 +40,13 @@ def row(ident: str, **extra) -> dict:
         "terms_version": "v1",
         **extra,
     }
+    if send:
+        out["send"] = True
+    return out
 
 
-def line(ident: str, **extra) -> str:
-    return json.dumps(row(ident, **extra), ensure_ascii=False) + "\n"
+def line(ident: str, send: bool = True, **extra) -> str:
+    return json.dumps(row(ident, send, **extra), ensure_ascii=False) + "\n"
 
 
 def write(directory: Path, name: str, ids: list[str], big: str | None = None) -> None:
@@ -79,6 +83,7 @@ def test_to_ingest_maps_the_fields():
         "variant": "small",
         "revision": "abc",
         "terms_version": "v1",
+        "send": True,
     }
     out = to_ingest(r, "inst")
     assert list(out) == [
@@ -106,15 +111,17 @@ def test_to_ingest_maps_the_fields():
     )
 
 
-def test_to_ingest_defaults_missing_keys():
-    out = to_ingest({"id": "i"}, "inst")
-    assert out["terms_version"] == "v1"
+def test_to_ingest_defaults_missing_keys_but_not_the_terms_version():
+    out = to_ingest({"id": "i", "terms_version": "v2"}, "inst")
+    assert out["terms_version"] == "v2"
     assert out["pred_tier"] is None and out["model_revision"] is None and out["prompt"] is None
+    with pytest.raises(KeyError):
+        to_ingest({"id": "i"}, "inst")  # a marked line always has it: no default
 
 
 def test_to_ingest_drops_the_local_only_fields():
     out = to_ingest(row("a"), "inst")
-    assert not {"route", "pieces", "truncated", "prompt_tokens", "latency_ms", "service_version"} & set(out)
+    assert not {"route", "pieces", "truncated", "prompt_tokens", "latency_ms", "service_version", "send"} & set(out)
 
 
 def test_an_empty_directory_reads_nothing(tmp_path):
@@ -310,6 +317,126 @@ def test_no_line_content_in_the_logs(tmp_path, caplog, capsys):
     assert "SECRET-PROMPT-TEXT" not in out.out + out.err
 
 
+# --- only what was captured while sending was on --------------------------------------------------------------------
+
+PRE_080 = {k: v for k, v in row("old", send=False).items() if k != "terms_version"}  # a line from before 0.8.0
+
+
+def test_lines_not_marked_for_sending_are_passed_silently(tmp_path):
+    text = line("off", send=False) + json.dumps(PRE_080) + "\n" + line("a") + line("off2", send=False)
+    (tmp_path / "capture-2026-10-24.jsonl").write_text(text)
+    rows, cursor, skipped = Spool(tmp_path).read(10)
+    assert ids(rows) == ["a"] and skipped == 0  # passed, not counted
+    assert cursor.offset == (tmp_path / "capture-2026-10-24.jsonl").stat().st_size
+
+
+def test_only_a_strict_true_marks_a_line(tmp_path):
+    lines = [json.dumps(row("t", send=False) | {"send": v}) + "\n" for v in ("true", 1, False, None)]
+    (tmp_path / "capture-2026-10-24.jsonl").write_text("".join(lines))
+    assert Spool(tmp_path).read(10)[0::2] == ([], 0)
+
+
+def test_a_marked_line_without_terms_version_is_skipped_and_counted(tmp_path):
+    marked = {k: v for k, v in row("x").items() if k != "terms_version"}
+    (tmp_path / "capture-2026-10-24.jsonl").write_text(json.dumps(marked) + "\n" + line("a"))
+    rows, _, skipped = Spool(tmp_path).read(10)
+    assert ids(rows) == ["a"] and skipped == 1
+
+
+def test_unmarked_lines_only_are_committed_without_a_post_or_a_count(tmp_path):
+    path = tmp_path / "capture-2026-10-24.jsonl"
+    path.write_text(line("off", send=False) + json.dumps(PRE_080) + "\n")
+    calls = []
+    s = sender(tmp_path, codes=[], calls=calls)
+    before = counter("tantive_capture_send_rejected_total")
+    assert s.run_once() == "empty"
+    assert calls == [] and counter("tantive_capture_send_rejected_total") == before
+    assert json.loads((tmp_path / ".send-cursor").read_text())["offset"] == path.stat().st_size
+
+
+def sent_prompts(calls) -> list[list[str]]:
+    return [[json.loads(x)["prompt"] for x in body.decode().splitlines()] for _, _, body in calls]
+
+
+def capture(directory: Path, send: bool, *prompts: str) -> None:
+    c = make(directory, send=send)
+    for p in prompts:
+        offer(c, prompt=p)
+    c.close()
+
+
+def test_what_was_captured_before_sending_was_on_is_never_sent(tmp_path):
+    capture(tmp_path, False, "before-1", "before-2")
+    capture(tmp_path, True, "after")
+    calls = []
+    s = sender(tmp_path, codes=[200], calls=calls)
+    before = counter("tantive_capture_send_rejected_total")
+    assert s.run_once() == "sent" and s.run_once() == "empty"
+    assert sent_prompts(calls) == [["after"]]
+    assert counter("tantive_capture_send_rejected_total") == before
+
+
+def test_on_off_on_never_sends_the_off_period(tmp_path):
+    calls = []
+    s = sender(tmp_path, codes=[200, 200], calls=calls)
+    capture(tmp_path, True, "on-1")
+    assert s.run_once() == "sent"
+    capture(tmp_path, False, "off-1", "off-2")  # the service restarted with sending off
+    capture(tmp_path, True, "on-2")  # and on again
+    assert s.run_once() == "sent" and s.run_once() == "empty"
+    assert sent_prompts(calls) == [["on-1"], ["on-2"]]
+
+
+def test_a_pre_080_line_is_passed_silently(tmp_path):
+    (tmp_path / "capture-2026-10-24.jsonl").write_text(json.dumps(PRE_080) + "\n" + line("a"))
+    calls = []
+    s = sender(tmp_path, codes=[200], calls=calls)
+    before = counter("tantive_capture_send_rejected_total")
+    assert s.run_once() == "sent"
+    assert sent_ids(calls[0][2]) == ["a"] and counter("tantive_capture_send_rejected_total") == before
+
+
+def test_an_offset_beyond_the_file_size_restarts_that_file(tmp_path):
+    write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b"])
+    s = Spool(tmp_path)
+    s.commit(Cursor("capture-2026-10-24.jsonl", 10_000))  # the file was replaced by a shorter one
+    rows, cursor, _ = s.read(10)
+    assert ids(rows) == ["a", "b"]  # the ingestion dedupes on id
+    assert cursor.offset == (tmp_path / "capture-2026-10-24.jsonl").stat().st_size
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_nan_or_infinity_is_skipped_and_counted(tmp_path, value):
+    bad = json.dumps(row("bad", score=value))  # what json.dumps writes by default: NaN, Infinity
+    (tmp_path / "capture-2026-10-24.jsonl").write_text(line("a") + bad + "\n" + line("b"))
+    rows, _, skipped = Spool(tmp_path).read(10)
+    assert ids(rows) == ["a", "b"] and skipped == 1
+
+
+def test_pending_counts_the_bytes_after_the_cursor(tmp_path):
+    write(tmp_path, "capture-2026-10-23.jsonl", ["a"])
+    write(tmp_path, "capture-2026-10-24.jsonl", ["b", "c"])
+    s = Spool(tmp_path)
+    total = sum(p.stat().st_size for p in tmp_path.glob("capture-*.jsonl"))
+    assert s.pending() == total
+    s.commit(Cursor("capture-2026-10-24.jsonl", len(line("b").encode())))
+    assert s.pending() == len(line("c").encode())  # older files are behind the cursor
+    s.commit(Cursor("capture-2026-10-24.jsonl", 10_000))
+    assert s.pending() == (tmp_path / "capture-2026-10-24.jsonl").stat().st_size  # restarted at 0
+
+
+def test_the_pending_gauge_falls_after_a_successful_send(tmp_path):
+    write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b", "c"])
+    size = (tmp_path / "capture-2026-10-24.jsonl").stat().st_size
+    s = sender(tmp_path, codes=[503, 200, 200], batch=2)
+    assert s.run_once() == "failed"
+    assert counter("tantive_capture_send_pending_bytes") == size
+    assert s.run_once() == "sent"
+    assert counter("tantive_capture_send_pending_bytes") == len(line("c").encode())
+    assert s.run_once() == "sent"
+    assert counter("tantive_capture_send_pending_bytes") == 0
+
+
 # --- the sender: one POST per batch, the cursor moves only on 2xx or a definitive rejection --------------------------
 
 
@@ -362,7 +489,11 @@ def test_the_body_is_encoded_like_the_spool_sizes_it(tmp_path):
     write(tmp_path, "capture-2026-10-24.jsonl", ["a"], big="é" * 10)
     calls = []
     sender(tmp_path, codes=[200], calls=calls).run_once()
-    assert "é".encode() * 10 in calls[0][2]  # UTF-8, not \u escapes
+    body = calls[0][2]
+    assert "é".encode() * 10 in body  # UTF-8, not \u escapes
+    (tmp_path / ".send-cursor").unlink()  # read the same line again
+    assert ids(Spool(tmp_path).read(10, max_bytes=len(body))[0]) == ["a"]  # the spool sized it at exactly this
+    assert Spool(tmp_path).read(10, max_bytes=len(body) - 1)[0::2] == ([], 1)
 
 
 def test_failure_keeps_the_cursor(tmp_path):

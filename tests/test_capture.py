@@ -58,6 +58,22 @@ def test_a_line_has_the_documented_fields(tmp_path):
     print(json.dumps(row))
 
 
+def test_a_line_written_while_sending_is_on_is_marked_last(tmp_path):
+    c = make(tmp_path, send=True)
+    offer(c)
+    c.close()
+    [row] = lines(tmp_path)
+    assert list(row)[-2:] == ["terms_version", "send"] and row["send"] is True
+
+
+def test_a_line_written_while_sending_is_off_has_no_mark(tmp_path):
+    c = make(tmp_path, send=False)
+    offer(c)
+    c.close()
+    [row] = lines(tmp_path)
+    assert "send" not in row and list(row)[-1] == "terms_version"
+
+
 def test_terms_version_is_written(tmp_path):
     c = make(tmp_path, terms_version="v2")
     offer(c)

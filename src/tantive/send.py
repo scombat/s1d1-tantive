@@ -4,8 +4,10 @@ the thread that posts them.
 The capture files are the queue. A cursor (`.send-cursor`: file name and byte offset) marks what has been delivered;
 it only moves when the caller commits it, so a failed delivery sends the same lines again. The cursor and the
 instance id (`.instance-id`) live in the capture directory, where the retention purge (capture-*.jsonl only) never
-looks. The text of a prompt goes to the ingestion and nowhere else: nothing here logs or prints a line's content,
-the token or the URL (a log line carries a status code, a count or an error class name, nothing more).
+looks. Only the lines the capture marked `"send": true` (written while sending was on) ever leave: any other line,
+from before 0.8.0 or from a period with sending off, is passed over. The text of a prompt goes to the ingestion and
+nowhere else: nothing here logs or prints a line's content, the token or the URL (a log line carries a status code, a
+count or an error class name, nothing more).
 """
 
 from __future__ import annotations
@@ -68,7 +70,8 @@ def instance_id(directory: Path) -> str:
 
 
 def to_ingest(row: dict, instance: str) -> dict:
-    """One captured line as a v1 ingestion line (keys in this order; a missing key is None, terms default to v1)."""
+    """One captured line as a v1 ingestion line (keys in this order; a missing key is None, except `terms_version`,
+    which a marked line always carries: KeyError without it). The `send` mark stays local."""
     return {
         "v": 1,
         "id": row.get("id"),
@@ -78,9 +81,19 @@ def to_ingest(row: dict, instance: str) -> dict:
         "instance_id": instance,
         "variant": row.get("variant"),
         "model_revision": row.get("revision"),
-        "terms_version": row.get("terms_version", "v1"),
+        "terms_version": row["terms_version"],
         **{key: row.get(source) for key, source in _PREDICTION.items()},
     }
+
+
+def encode(line: dict) -> bytes:
+    """One ingestion line as it goes into an NDJSON body (UTF-8, no NaN or Infinity: ValueError instead).
+
+    The spool sizes each line with this and the sender builds the body with it, so a batch is exactly what was sized."""
+    return (json.dumps(line, ensure_ascii=False, allow_nan=False) + "\n").encode()
+
+
+_PASS = object()  # a line not marked for sending: the cursor moves past it, nothing is counted
 
 
 @dataclass(frozen=True)
@@ -100,6 +113,7 @@ class Spool:
     def __init__(self, directory: Path) -> None:
         self.dir = Path(directory)
         self.full = False  # the last read stopped at `limit` or `max_bytes`, not at the end: more may follow
+        self.passed = 0  # lines of the last read not marked for sending
 
     def _files(self) -> list[tuple[tuple[str, int], str]]:
         """The capture files, oldest first by (day, index): the plain name is index 0 and sorts before -001."""
@@ -116,6 +130,38 @@ class Spool:
         except (OSError, ValueError, KeyError, TypeError):
             return None  # no cursor, or an unreadable one: start over (a repeat is better than a loss)
 
+    def _position(self, files: list[tuple[tuple[str, int], str]]) -> tuple[int, int, Cursor | None]:
+        """Where reading starts: the index in `files`, the offset in that file, and the saved cursor (None if none).
+
+        The cursor's file, or after a purge the first existing file that comes after it (from its start). An offset
+        beyond the file's size (the file was replaced or truncated) restarts that file at 0: a repeat is better than a
+        loss, and the ingestion dedupes on id."""
+        saved = self._load()
+        if saved is None or (saved_key := _key(saved.file)) is None:
+            return 0, 0, None
+        start = next((i for i, (key, _) in enumerate(files) if key >= saved_key), len(files))
+        offset = 0
+        if start < len(files) and files[start][0] == saved_key:
+            offset = max(saved.offset, 0)
+            try:
+                if offset > (self.dir / files[start][1]).stat().st_size:
+                    offset = 0
+            except OSError:  # purged meanwhile: the read finds out
+                pass
+        return start, offset, saved
+
+    def pending(self) -> int:
+        """Bytes of capture files after the cursor (marked or not, complete or not)."""
+        files = self._files()
+        start, offset, _ = self._position(files)
+        total = 0
+        for _, name in files[start:]:
+            try:
+                total += (self.dir / name).stat().st_size
+            except OSError:
+                pass
+        return max(total - offset, 0)
+
     def commit(self, cursor: Cursor) -> None:
         _replace_atomically(self.dir / CURSOR_FILE, json.dumps({"file": cursor.file, "offset": cursor.offset}))
 
@@ -123,22 +169,18 @@ class Spool:
         """Up to `limit` v1 lines after the cursor (together at most `max_bytes` as NDJSON), the cursor after them,
         and the number of lines skipped.
 
-        A line is skipped (never returned, never logged) when it is not a JSON object or when its ingestion encoding
+        A line without `"send": true` (captured before 0.8.0 or while sending was off) is passed: never returned,
+        never counted, the cursor moves past it. A marked line is skipped (never returned, never logged, counted)
+        when it is not a JSON object, has no `terms_version`, holds NaN or Infinity, or when its ingestion encoding
         alone exceeds `max_bytes`; the returned cursor moves past it, even when no row comes back, so committing never
         gets stuck. A last line without its newline is still being written and waits. Afterwards `self.full` says
-        whether the read stopped at `limit` or `max_bytes` rather than at the end of the files.
+        whether the read stopped at `limit` or `max_bytes` rather than at the end of the files, and `self.passed`
+        how many lines were passed.
         """
         self.full = False
+        self.passed = 0
         files = self._files()
-        saved = self._load()
-        start, offset = 0, 0
-        if saved is not None and (saved_key := _key(saved.file)) is not None:
-            # the cursor's file, or after a purge the first existing file that comes after it (from its start)
-            start = next((i for i, (key, _) in enumerate(files) if key >= saved_key), len(files))
-            if start < len(files) and files[start][0] == saved_key:
-                offset = max(saved.offset, 0)
-        else:
-            saved = None
+        start, offset, saved = self._position(files)
         if start >= len(files):
             return [], saved or Cursor("", 0), 0
 
@@ -162,12 +204,14 @@ class Spool:
                             break
                         before = Cursor(name, offset)
                         parsed = self._parse(raw, instance, max_bytes)
-                        if parsed is not None and used + parsed[1] > max_bytes:
+                        if isinstance(parsed, tuple) and used + parsed[1] > max_bytes:
                             self.full = True
                             return rows, before, skipped  # this line opens the next batch
                         offset += len(raw)
                         cursor = Cursor(name, offset)
-                        if parsed is None:
+                        if parsed is _PASS:
+                            self.passed += 1
+                        elif parsed is None:
                             skipped += 1
                         else:
                             rows.append(parsed[0])
@@ -183,16 +227,24 @@ class Spool:
         return rows, cursor, skipped
 
     @staticmethod
-    def _parse(raw: bytes, instance: str, max_bytes: int) -> tuple[dict, int] | None:
-        """The v1 line and its size in an NDJSON batch, or None when it cannot be sent at all."""
+    def _parse(raw: bytes, instance: str, max_bytes: int) -> tuple[dict, int] | object | None:
+        """The v1 line and its size in an NDJSON batch, `_PASS` when the line is not marked for sending, or None
+        when it cannot be sent at all."""
         try:
             row = json.loads(raw)
         except (ValueError, RecursionError):
             return None
         if not isinstance(row, dict):
             return None
+        if row.get("send") is not True:
+            return _PASS
+        if row.get("terms_version") is None:
+            return None
         out = to_ingest(row, instance)
-        size = len(json.dumps(out, ensure_ascii=False).encode()) + 1
+        try:
+            size = len(encode(out))
+        except ValueError:  # NaN or Infinity: not JSON
+            return None
         return (out, size) if size <= max_bytes else None
 
 
@@ -271,20 +323,24 @@ class Sender:
     def run_once(self) -> str:
         """Send one batch: "sent", "empty", "rejected" or "failed"."""
         self._full = False
-        result = self._send_batch()
+        try:
+            result = self._send_batch()
+        finally:
+            metrics().capture_send_pending(self.spool.pending())
         self._failing = result == "failed"  # an outage ends at the first result that is not a failure
         return result
 
     def _send_batch(self) -> str:
         rows, cursor, skipped = self.spool.read(self.batch, MAX_BATCH_BYTES)
         if not rows:
+            if self.spool.passed or skipped:
+                self.spool.commit(cursor)  # lines not marked for sending, unreadable or oversized: pass them
             if not skipped:
                 return "empty"
-            self.spool.commit(cursor)  # only unreadable or oversized lines: pass them
             metrics().capture_send_rejected(skipped)
             log_event("capture_send_skipped", level=logging.WARNING, lines=skipped)
             return "rejected"
-        body = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows).encode()
+        body = b"".join(encode(r) for r in rows)
         status = self._post(self.url, self.token, body)
         if 200 <= status < 300 or status in REJECTED:
             self.spool.commit(cursor)

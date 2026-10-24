@@ -45,6 +45,7 @@ class Capture:
         rng: Callable[[], float] = random.random,
         start: bool = True,
         terms_version: str = "v1",
+        send: bool = False,
     ) -> None:
         self.dir = Path(directory)
         try:
@@ -58,6 +59,7 @@ class Capture:
         self.sample, self.min_margin, self.max_bytes = sample, min_margin, max_bytes
         self.retention_days, self.clock, self.rng = retention_days, clock, rng
         self.terms_version = terms_version
+        self.send = send  # mark each line `"send": true`: only marked lines ever leave (tantive.send)
         self._queue: queue.Queue = queue.Queue(maxsize=queue_size)
         self._thread = threading.Thread(target=self._run, name="s1d1-capture", daemon=True)
         self._file = None
@@ -101,6 +103,8 @@ class Capture:
             "service_version": __version__,
             "terms_version": self.terms_version,
         }
+        if self.send:
+            row["send"] = True
         try:
             self._queue.put_nowait((now, row))
         except queue.Full:

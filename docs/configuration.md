@@ -86,5 +86,5 @@ queue.
 ## Metrics and tracing
 
 `GET /metrics` exposes `tantive_decisions_total` (by tier), `tantive_request_latency_seconds` (queue included),
-`tantive_prompt_tokens` `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
+`tantive_prompt_tokens` `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total` and the gauge `tantive_capture_send_pending_bytes`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
 and traces over OTLP; `/health`, `/ready` and `/metrics` are not traced. Logs are JSON lines on standard output.

@@ -122,7 +122,8 @@ class Settings:
 
 
 def _check_capture_url(url: str) -> None:
-    """https, or http on a loopback host (tests), with no credentials in it; the URL itself is never echoed."""
+    """https, or http on a loopback host (tests), with no credentials, query string or fragment in it; the URL itself
+    is never echoed."""
     try:
         parts = urlsplit(url)
         host = parts.hostname
@@ -131,6 +132,8 @@ def _check_capture_url(url: str) -> None:
         raise ConfigError("S1D1_CAPTURE_URL is not a valid URL") from None
     if userinfo:
         raise ConfigError("S1D1_CAPTURE_URL must not carry credentials (user:password@); use S1D1_CAPTURE_TOKEN instead")
+    if "?" in url or "#" in url:
+        raise ConfigError("S1D1_CAPTURE_URL must not carry a query string or a fragment (? or #)")
     if parts.scheme == "https" and host:
         return
     if parts.scheme == "http" and host in LOOPBACK_HOSTS:

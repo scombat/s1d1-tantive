@@ -3,6 +3,8 @@ import pytest
 from tantive.app import create_app
 from tantive.config import ConfigError
 
+NOWHERE = "http://127.0.0.1:9/ingest"  # the discard port: any test that builds a real Sender posts here
+
 
 @pytest.fixture
 def chat_stub(monkeypatch):
@@ -197,7 +199,10 @@ async def test_info_shows_send_and_hides_the_token(fake_model, settings_factory,
 
     app = create_app(
         settings_factory(
-            S1D1_CAPTURE_SEND="1", S1D1_CAPTURE_DIR=str(tmp_path), S1D1_CAPTURE_TOKEN="s3cret"
+            S1D1_CAPTURE_SEND="1",
+            S1D1_CAPTURE_DIR=str(tmp_path),
+            S1D1_CAPTURE_TOKEN="s3cret",
+            S1D1_CAPTURE_URL=NOWHERE,  # a real Sender: never the public ingestion from the test suite
         ),
         fake_model,
     )
@@ -205,9 +210,22 @@ async def test_info_shows_send_and_hides_the_token(fake_model, settings_factory,
         r = await c.get("/info")
     send = r.json()["capture"]["send"]
     assert send["enabled"] is True
-    assert send["url"] == "https://s1d1.qoo.gy/ingest"
+    assert send["url"] == NOWHERE
     assert str(uuid.UUID(send["instance_id"])) == send["instance_id"]
     assert "s3cret" not in r.text
+
+
+async def test_capture_marks_its_lines_only_when_sending_is_on(fake_model, settings_factory, tmp_path):
+    on = create_app(
+        settings_factory(S1D1_CAPTURE_SEND="1", S1D1_CAPTURE_DIR=str(tmp_path / "on"), S1D1_CAPTURE_URL=NOWHERE),
+        fake_model,
+    )
+    off = create_app(settings_factory(S1D1_CAPTURE_DIR=str(tmp_path / "off")), fake_model)
+    try:
+        assert on.state.capture.send is True and off.state.capture.send is False
+    finally:
+        on.state.capture.close()
+        off.state.capture.close()
 
 
 async def test_send_is_absent_by_default(client):

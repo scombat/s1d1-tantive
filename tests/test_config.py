@@ -213,3 +213,13 @@ def test_capture_url_errors_do_not_echo_the_url(tmp_path):
     with pytest.raises(ConfigError, match="S1D1_CAPTURE_URL") as e:
         Settings.from_env(env)
     assert "public.example" not in str(e.value)
+
+
+@pytest.mark.parametrize(
+    "url", ["https://host.example/ingest?key=SECRET", "https://host.example/ingest#SECRET", "https://host.example/i?"]
+)
+def test_capture_url_with_a_query_or_a_fragment_is_refused_and_not_echoed(tmp_path, url):
+    env = {"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_CAPTURE_URL": url}
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_URL") as e:
+        Settings.from_env(env)
+    assert "SECRET" not in str(e.value) and "host.example" not in str(e.value)
