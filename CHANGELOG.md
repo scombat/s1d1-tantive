@@ -2,9 +2,22 @@
 
 ## Unreleased
 
+## 0.8.0 — 2026-10-24
+
+- Opt-in sending of the captured lines to a community ingestion: `S1D1_CAPTURE_SEND=1` (off by default, needs
+  `S1D1_CAPTURE_DIR`) starts a thread that posts the capture files in NDJSON batches to `S1D1_CAPTURE_URL` (default
+  `https://s1d1.qoo.gy/ingest`, `https` only except localhost), with an optional `S1D1_CAPTURE_TOKEN`,
+  `S1D1_CAPTURE_BATCH` and `S1D1_CAPTURE_SEND_SECONDS`. Only the lines captured while sending is on are sent (they
+  carry `"send": true`), never what was captured before or while it was off. At-least-once delivery with a cursor in the capture folder,
+  back-off on failure, no redirect followed, and the token and prompts kept out of logs, `/info` and OpenTelemetry. New
+  counters `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total`
+  and the gauge `tantive_capture_send_pending_bytes`;
+  `/info` reports `capture.send` (`enabled`, `url`, `instance_id`). `S1D1_TERMS_VERSION` (default `v1`) is written in
+  each captured line. Guide: the sending section of `docs/capture.md`.
+
 - New `image` workflow: pull requests that touch the Dockerfile, `uv.lock`, `pyproject.toml`, `checksums/` or `verify.py`
   build the small image from the Hub weights and run the `docker` tests (amd64, nothing pushed or signed).
-- Image references move to 0.7.0 in the README, the guides, the deployment templates and the Space files, so the templates
+- Image references move to 0.8.0 in the README, the guides, the deployment templates and the Space files, so the templates
   pull images with the capture. `CITATION.cff` drops its `version` and `date-released`: the citation names the repository,
   the release page names the version.
 - The version is read from the package metadata: `tantive.__version__` comes from `pyproject.toml` through
@@ -18,6 +31,9 @@
   too long text, shed), instead of failing the whole batch. 200 when at least one item succeeded, 503 + `Retry-After` when
   every item was shed, 422 when every item failed otherwise; body-level errors are unchanged. Metrics and `decision` lines count the items that ran. Guide: the Batch
   section of `docs/formats.md`.
+- `S1D1_ROOT_PATH` no longer goes to uvicorn, which prepended the prefix to a path that already carried it (404 on
+  `/api/v1/systemone`): a middleware now accepts request paths with and without the prefix (`/api/...` and `/...`), for a
+  proxy or tunnel that forwards the prefix unchanged as for one that strips it.
 - chat-completions refuses `"stream": true` with a 400 in the usual error shape instead of ignoring it: this endpoint
   does not stream, a classification is one response.
 - Dependabot keeps the GitHub Actions, the Docker bases and the uv lockfile up to date: weekly, on Monday, one grouped

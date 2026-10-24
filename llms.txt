@@ -22,7 +22,7 @@
 - [Configuration](docs/configuration.md): every environment variable, warm-up, load shedding and metrics.
 - [Sizing](docs/sizing.md): the cost model, replicas, memory, deadline, with worked examples.
 - [Use cases](docs/use-cases.md): six ready-made configurations, from a pilot to a closed network.
-- [Capture](docs/capture.md): keep the classified prompts in JSONL files (opt-in), mount a volume, ship the files.
+- [Capture](docs/capture.md): keep the classified prompts in JSONL files (opt-in), mount a volume, ship the files, or opt in to send them to the community ingestion.
 - [Verify the image](docs/verify.md): signature, SLSA provenance and weights checksums.
 
 ## Optional

@@ -2,7 +2,7 @@
 
 This page shows how to deploy s1d1-tantive on Heroku with the Deploy button. Three files make it: `app.json` and
 `heroku.yml` at the root of the repository, and `deploy/heroku/Dockerfile`, a single
-`FROM ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8` with an `ENTRYPOINT` that starts the service on Heroku's
+`FROM ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8` with an `ENTRYPOINT` that starts the service on Heroku's
 `$PORT`. `app.json` sets `"stack": "container"`, so Heroku builds that Dockerfile instead of using a buildpack.
 
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://www.heroku.com/deploy?template=https://github.com/scombat/s1d1-tantive)
@@ -11,7 +11,7 @@ The button needs the repository to be public. Checked on devcenter.heroku.com on
 
 ## Facts
 
-- Image: `ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8`
+- Image: `ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8`
 - RAM: 1024 MiB (Standard-2X dyno, 1 GB, checked 2026-10-21)
 - Status: needs public repository
 - Still to do (you): make the repository public; the images are already public.

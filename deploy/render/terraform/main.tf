@@ -14,7 +14,7 @@ terraform {
 variable "image_url" {
   description = "Image to run, one per model variant (full needs 2 GiB, small 1 GiB, tiny 512 MiB)."
   type        = string
-  default     = "ghcr.io/scombat/s1d1-tantive:0.7.0-tiny-onnx-int8"
+  default     = "ghcr.io/scombat/s1d1-tantive:0.8.0-tiny-onnx-int8"
 }
 
 variable "plan" {

@@ -1,7 +1,7 @@
 # Deploy s1d1-tantive on Google Cloud Run
 
 This page shows how to deploy s1d1-tantive on Google Cloud Run with the Cloud Run Button. The button clones this
-repository in Cloud Shell, builds `deploy/gcp/Dockerfile` (a single `FROM ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8`:
+repository in Cloud Shell, builds `deploy/gcp/Dockerfile` (a single `FROM ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8`:
 Cloud Run cannot pull from GHCR, so the build copies the published image into your project), pushes it to your
 registry and runs `gcloud run deploy`. `deploy/gcp/app.json` prompts for the settings.
 
@@ -13,7 +13,7 @@ source and Google Cloud's memory-limits and pricing pages.
 
 ## Facts
 
-- Image: `ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8`
+- Image: `ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8`
 - RAM: 2048 MiB (`options.memory`, with 1 vCPU)
 - Status: needs public repository
 - Still to do (you): make the repository public; the images are already public.
@@ -61,10 +61,10 @@ Cloud Run pulls only from Google's registries, so copy the image into your Artif
 REGION=us-central1; PROJECT=$(gcloud config get-value project)
 gcloud artifacts repositories create s1d1 --repository-format=docker --location=$REGION
 gcloud auth configure-docker $REGION-docker.pkg.dev
-docker pull --platform linux/amd64 ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8
-docker tag ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8 $REGION-docker.pkg.dev/$PROJECT/s1d1/s1d1-tantive:0.7.0-small
-docker push $REGION-docker.pkg.dev/$PROJECT/s1d1/s1d1-tantive:0.7.0-small
-gcloud run deploy s1d1-tantive --image $REGION-docker.pkg.dev/$PROJECT/s1d1/s1d1-tantive:0.7.0-small \
+docker pull --platform linux/amd64 ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8
+docker tag ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8 $REGION-docker.pkg.dev/$PROJECT/s1d1/s1d1-tantive:0.8.0-small
+docker push $REGION-docker.pkg.dev/$PROJECT/s1d1/s1d1-tantive:0.8.0-small
+gcloud run deploy s1d1-tantive --image $REGION-docker.pkg.dev/$PROJECT/s1d1/s1d1-tantive:0.8.0-small \
   --region $REGION --port 8788 --memory 2Gi --cpu 1 --concurrency 8 --max-instances 3 --no-allow-unauthenticated \
   --set-env-vars "^@^S1D1_TIERS=TRIVIAL=0.15,LOW=0.4,MEDIUM=0.7,HIGH=0.9,EXPERT=1.0@S1D1_FORMATS=systemone,decisions,classify"
 ```

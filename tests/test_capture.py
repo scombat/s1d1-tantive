@@ -45,6 +45,7 @@ def test_a_line_has_the_documented_fields(tmp_path):
     assert list(row) == [
         "time", "id", "prompt", "format", "route", "tier", "score", "task", "needs_tools", "confidence",
         "pieces", "truncated", "prompt_tokens", "latency_ms", "variant", "revision", "service_version",
+        "terms_version",
     ]  # fmt: skip
     assert row["time"] == "2026-10-21T12:00:00.000Z"
     assert row["prompt"] == "how do I fix this bug?"
@@ -53,7 +54,32 @@ def test_a_line_has_the_documented_fields(tmp_path):
     )  # fmt: skip
     assert 0 <= row["confidence"] <= 1
     assert row["latency_ms"] == 12.3
+    assert row["terms_version"] == "v1"
     print(json.dumps(row))
+
+
+def test_a_line_written_while_sending_is_on_is_marked_last(tmp_path):
+    c = make(tmp_path, send=True)
+    offer(c)
+    c.close()
+    [row] = lines(tmp_path)
+    assert list(row)[-2:] == ["terms_version", "send"] and row["send"] is True
+
+
+def test_a_line_written_while_sending_is_off_has_no_mark(tmp_path):
+    c = make(tmp_path, send=False)
+    offer(c)
+    c.close()
+    [row] = lines(tmp_path)
+    assert "send" not in row and list(row)[-1] == "terms_version"
+
+
+def test_terms_version_is_written(tmp_path):
+    c = make(tmp_path, terms_version="v2")
+    offer(c)
+    c.close()
+    [row] = lines(tmp_path)
+    assert row["terms_version"] == "v2"
 
 
 def test_one_file_per_utc_day(tmp_path):
@@ -194,12 +220,14 @@ async def test_every_adapter_path_captures_and_the_text_stays_out_of_stdout(
     assert row["format"] == "classify"
     assert info["capture"] == {
         "enabled": True, "dir": str(tmp_path), "sample": 1.0, "min_margin": None, "retention_days": None,
+        "send": {"enabled": False, "url": None, "instance_id": None},
     }  # fmt: skip
 
 
 async def test_info_when_capture_is_off(client):
     assert (await client.get("/info")).json()["capture"] == {
         "enabled": False, "dir": None, "sample": None, "min_margin": None, "retention_days": None,
+        "send": {"enabled": False, "url": None, "instance_id": None},
     }  # fmt: skip
 
 

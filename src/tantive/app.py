@@ -21,7 +21,9 @@ from tantive.engine import Engine
 from tantive.errors import ApiError, error_response
 from tantive.longprompt import LongPromptPolicy
 from tantive.model import Model, ModelInfo
+from tantive.prefix import PrefixMiddleware
 from tantive.questions import Catalogue
+from tantive.send import Sender
 from tantive.telemetry import configure_otel, log_event
 from tantive.tiers import TierSet, native_set
 
@@ -151,8 +153,22 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
             max_bytes=settings.capture_max_mb * 1024 * 1024,
             retention_days=settings.capture_retention_days,
             queue_size=settings.capture_queue,
+            terms_version=settings.terms_version,
+            send=settings.capture_send,
         )
         if settings.capture_dir
+        else None
+    )
+    sender = (
+        Sender(
+            settings.capture_dir,
+            url=settings.capture_url,
+            token=settings.capture_token,
+            batch=settings.capture_batch,
+            interval=settings.capture_send_seconds,
+            start=False,
+        )
+        if settings.capture_send and settings.capture_dir
         else None
     )
 
@@ -160,7 +176,11 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
     async def lifespan(app: FastAPI):
         await engine.start()
         log_ready(settings, info, engine)
+        if sender is not None:
+            sender.start()
         yield
+        if sender is not None:
+            await asyncio.to_thread(sender.close)
         await engine.close()
         if capture is not None:
             await asyncio.to_thread(capture.close)
@@ -174,9 +194,11 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
         native,
     )
     app.state.capture = capture
+    app.state.sender = sender
     install_error_handlers(app)
     app.add_middleware(_BodySizeLimit, limit=MAX_BODY_BYTES)
-    app.include_router(service.router(engine, settings, info, native))
+    app.add_middleware(PrefixMiddleware, prefix=settings.root_path)
+    app.include_router(service.router(engine, settings, info, native, sender))
     auth = require_api_key(settings)
     for name in sorted(settings.formats):
         factory = ADAPTERS.get(name)

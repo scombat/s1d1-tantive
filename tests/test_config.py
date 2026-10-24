@@ -119,3 +119,107 @@ def test_capture_settings_are_read():
 def test_capture_settings_are_validated(name, value):
     with pytest.raises(ConfigError, match=name):
         Settings.from_env({name: value})
+
+
+def test_send_is_off_by_default():
+    s = Settings.from_env({})
+    assert (
+        s.capture_send,
+        s.capture_url,
+        s.capture_token,
+        s.capture_batch,
+        s.capture_send_seconds,
+        s.terms_version,
+    ) == (
+        False,
+        "https://s1d1.qoo.gy/ingest",
+        None,
+        100,
+        30,
+        "v1",
+    )
+
+
+def test_send_needs_the_capture_dir():
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_SEND"):
+        Settings.from_env({"S1D1_CAPTURE_SEND": "1"})
+
+
+@pytest.mark.parametrize("url", ["http://s1d1.qoo.gy/ingest", "ftp://x/ingest", "s1d1.qoo.gy/ingest"])
+def test_send_url_must_be_https(url, tmp_path):
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_URL"):
+        Settings.from_env({"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_CAPTURE_URL": url})
+
+
+@pytest.mark.parametrize("url", ["http://127.0.0.1:9000/ingest", "http://localhost/ingest", "http://[::1]:8/i"])
+def test_send_url_may_be_http_on_loopback(url, tmp_path):
+    env = {"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_CAPTURE_URL": url}
+    assert Settings.from_env(env).capture_url == url
+
+
+def test_batch_bounds(tmp_path):
+    base = {"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path)}
+    for bad in ("0", "501"):
+        with pytest.raises(ConfigError, match="S1D1_CAPTURE_BATCH"):
+            Settings.from_env(base | {"S1D1_CAPTURE_BATCH": bad})
+
+
+@pytest.mark.parametrize("bad", ["0", "3601"])
+def test_send_seconds_bounds(bad):
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_SEND_SECONDS"):
+        Settings.from_env({"S1D1_CAPTURE_SEND_SECONDS": bad})
+
+
+def test_send_url_is_not_checked_while_send_is_off():
+    s = Settings.from_env({"S1D1_CAPTURE_URL": "ftp://nope"})
+    assert s.capture_send is False
+
+
+def test_send_settings_are_read(tmp_path):
+    s = Settings.from_env(
+        {
+            "S1D1_CAPTURE_SEND": "1",
+            "S1D1_CAPTURE_DIR": str(tmp_path),
+            "S1D1_CAPTURE_TOKEN": "tok",
+            "S1D1_CAPTURE_BATCH": "7",
+            "S1D1_CAPTURE_SEND_SECONDS": "5",
+            "S1D1_TERMS_VERSION": "v2",
+        }
+    )
+    assert (s.capture_send, s.capture_token, s.capture_batch, s.capture_send_seconds, s.terms_version) == (
+        True,
+        "tok",
+        7,
+        5,
+        "v2",
+    )
+
+
+def test_capture_token_never_shows_in_a_repr():
+    s = Settings.from_env({"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": "/c", "S1D1_CAPTURE_TOKEN": "s3cret"})
+    assert s.capture_token == "s3cret"
+    assert "s3cret" not in repr(s)
+
+
+def test_capture_url_with_credentials_is_refused_and_not_echoed(tmp_path):
+    env = {"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_CAPTURE_URL": "https://user:pw@host.example/ingest"}
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_TOKEN") as e:
+        Settings.from_env(env)
+    assert "pw" not in str(e.value) and "host.example" not in str(e.value)
+
+
+def test_capture_url_errors_do_not_echo_the_url(tmp_path):
+    env = {"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_CAPTURE_URL": "http://public.example/ingest"}
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_URL") as e:
+        Settings.from_env(env)
+    assert "public.example" not in str(e.value)
+
+
+@pytest.mark.parametrize(
+    "url", ["https://host.example/ingest?key=SECRET", "https://host.example/ingest#SECRET", "https://host.example/i?"]
+)
+def test_capture_url_with_a_query_or_a_fragment_is_refused_and_not_echoed(tmp_path, url):
+    env = {"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_CAPTURE_URL": url}
+    with pytest.raises(ConfigError, match="S1D1_CAPTURE_URL") as e:
+        Settings.from_env(env)
+    assert "SECRET" not in str(e.value) and "host.example" not in str(e.value)

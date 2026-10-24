@@ -23,8 +23,9 @@ names it.
 | `S1D1_API_KEY` | none | when set, adapter routes need `Authorization: Bearer <key>` (or `x-api-key`) |
 | `S1D1_LOG_PROMPTS` | 0 | 1 to write the classified text in the decision log line |
 | `S1D1_CAPTURE_DIR`, `S1D1_CAPTURE_SAMPLE`, `S1D1_CAPTURE_MIN_MARGIN`, `S1D1_CAPTURE_MAX_MB`, `S1D1_CAPTURE_RETENTION_DAYS`, `S1D1_CAPTURE_QUEUE` | none, 1.0, empty, 100, empty, 10000 | keep the classified prompts in JSONL files, off unless the folder is set ([capture.md](capture.md)) |
+| `S1D1_CAPTURE_SEND`, `S1D1_CAPTURE_URL`, `S1D1_CAPTURE_TOKEN`, `S1D1_CAPTURE_BATCH`, `S1D1_CAPTURE_SEND_SECONDS`, `S1D1_TERMS_VERSION` | 0, `https://s1d1.qoo.gy/ingest`, none, 100, 30, `v1` | opt-in: post the captured lines to the community ingestion; needs `S1D1_CAPTURE_DIR` ([capture.md](capture.md#send-to-the-community-ingestion)) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | none | enables OTLP traces and metrics (the standard `OTEL_*` variables apply) |
-| `S1D1_HOST`, `S1D1_PORT`, `S1D1_ROOT_PATH` | `0.0.0.0`, 8788, empty | network |
+| `S1D1_HOST`, `S1D1_PORT`, `S1D1_ROOT_PATH` | `0.0.0.0`, 8788, empty | network; with `S1D1_ROOT_PATH=/api` the service answers `/api/v1/systemone` and `/v1/systemone` alike (so it works behind a proxy that keeps the prefix or one that strips it), `/ready`, `/health` and `/metrics` included; `/apix/...` is not the prefix |
 
 Service routes, always on and never behind the key: `GET /health`, `GET /ready`, `GET /metrics` (Prometheus) and
 `GET /info`. A public deployment should set `S1D1_API_KEY`.
@@ -85,5 +86,5 @@ queue.
 ## Metrics and tracing
 
 `GET /metrics` exposes `tantive_decisions_total` (by tier), `tantive_request_latency_seconds` (queue included),
-`tantive_prompt_tokens` `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
+`tantive_prompt_tokens` `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total` and the gauge `tantive_capture_send_pending_bytes`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
 and traces over OTLP; `/health`, `/ready` and `/metrics` are not traced. Logs are JSON lines on standard output.

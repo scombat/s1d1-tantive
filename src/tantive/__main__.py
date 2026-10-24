@@ -28,7 +28,7 @@ def main() -> int:
     log_event("starting", host=settings.host, port=settings.port, root_path=settings.root_path or None)
     import uvicorn
 
-    uvicorn.run(app, host=settings.host, port=settings.port, root_path=settings.root_path, workers=1, log_config=None)
+    uvicorn.run(app, host=settings.host, port=settings.port, workers=1, log_config=None)
     return 0
 
 

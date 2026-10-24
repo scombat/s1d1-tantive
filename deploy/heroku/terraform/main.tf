@@ -1,5 +1,5 @@
 # s1d1-tantive on Heroku. Heroku cannot pull an image from a registry: it builds the repository's heroku.yml, which
-# builds deploy/heroku/Dockerfile (FROM ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8). The service listens on
+# builds deploy/heroku/Dockerfile (FROM ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8). The service listens on
 # Heroku's $PORT there (8788 elsewhere). Adapt: app_name, source_url (a tarball of your fork or of a release).
 terraform {
   required_version = ">= 1.5"
@@ -31,7 +31,7 @@ variable "source_url" {
 variable "source_version" {
   description = "Label of that source (a tag or commit), shown on the release; changing it triggers a new build."
   type        = string
-  default     = "0.7.0"
+  default     = "0.8.0"
 }
 
 variable "dyno_size" {
