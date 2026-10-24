@@ -106,10 +106,11 @@ class Spool:
         _replace_atomically(self.dir / CURSOR_FILE, json.dumps({"file": cursor.file, "offset": cursor.offset}))
 
     def read(self, limit: int, max_bytes: int = 1_048_576) -> tuple[list[dict], Cursor, int]:
-        """Up to `limit` v1 lines after the cursor, the cursor after them, and the number of lines skipped.
+        """Up to `limit` v1 lines after the cursor (together at most `max_bytes` as NDJSON), the cursor after them,
+        and the number of lines skipped.
 
         A line is skipped (never returned, never logged) when it is not a JSON object or when its ingestion encoding
-        exceeds `max_bytes`; the returned cursor moves past it, even when no row comes back, so committing never
+        alone exceeds `max_bytes`; the returned cursor moves past it, even when no row comes back, so committing never
         gets stuck. A last line without its newline is still being written and waits.
         """
         files = self._files()
@@ -127,7 +128,7 @@ class Spool:
 
         instance = instance_id(self.dir)
         rows: list[dict] = []
-        skipped = 0
+        skipped = used = 0
         cursor = Cursor(files[start][1], offset)
         for i in range(start, len(files)):
             name = files[i][1]
@@ -143,13 +144,17 @@ class Spool:
                                 offset += len(raw)
                                 cursor = Cursor(name, offset)
                             break
+                        before = Cursor(name, offset)
+                        parsed = self._parse(raw, instance, max_bytes)
+                        if parsed is not None and used + parsed[1] > max_bytes:
+                            return rows, before, skipped  # this line opens the next batch
                         offset += len(raw)
                         cursor = Cursor(name, offset)
-                        parsed = self._parse(raw, instance, max_bytes)
                         if parsed is None:
                             skipped += 1
                         else:
-                            rows.append(parsed)
+                            rows.append(parsed[0])
+                            used += parsed[1]
                             if len(rows) >= limit:
                                 return rows, cursor, skipped
             except FileNotFoundError:  # purged between the listing and the read
@@ -160,7 +165,8 @@ class Spool:
         return rows, cursor, skipped
 
     @staticmethod
-    def _parse(raw: bytes, instance: str, max_bytes: int) -> dict | None:
+    def _parse(raw: bytes, instance: str, max_bytes: int) -> tuple[dict, int] | None:
+        """The v1 line and its size in an NDJSON batch, or None when it cannot be sent at all."""
         try:
             row = json.loads(raw)
         except (ValueError, RecursionError):
@@ -168,6 +174,5 @@ class Spool:
         if not isinstance(row, dict):
             return None
         out = to_ingest(row, instance)
-        if len(json.dumps(out, ensure_ascii=False).encode()) + 1 > max_bytes:
-            return None
-        return out
+        size = len(json.dumps(out, ensure_ascii=False).encode()) + 1
+        return (out, size) if size <= max_bytes else None

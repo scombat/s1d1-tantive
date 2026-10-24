@@ -252,9 +252,33 @@ def test_max_bytes_applies_to_the_ingestion_line(tmp_path):
     write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b"])
     size = len(json.dumps(to_ingest(row("a"), instance_id(tmp_path)), ensure_ascii=False).encode()) + 1
     rows, _, skipped = Spool(tmp_path).read(10, max_bytes=size)
-    assert ids(rows) == ["a", "b"] and skipped == 0
+    assert ids(rows) == ["a"] and skipped == 0  # one line fits exactly; the next opens the next batch
     rows, _, skipped = Spool(tmp_path).read(10, max_bytes=size - 1)
     assert rows == [] and skipped == 2
+
+
+def test_a_batch_is_capped_at_max_bytes_not_only_a_line(tmp_path):
+    write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b", "c", "d", "e"])
+    size = len(json.dumps(to_ingest(row("a"), "x"), ensure_ascii=False).encode()) + 1  # ids have the same length
+    cap = size * 2 + size // 2  # two lines fit, not three
+    spool = Spool(tmp_path)
+    rows, cursor, skipped = spool.read(10, max_bytes=cap)
+    assert ids(rows) == ["a", "b"] and skipped == 0
+    assert cursor.offset == len(line("a").encode()) * 2
+    spool.commit(cursor)
+    rows, cursor, _ = Spool(tmp_path).read(10, max_bytes=cap)
+    assert ids(rows) == ["c", "d"]
+    spool.commit(cursor)
+    assert ids(Spool(tmp_path).read(10, max_bytes=cap)[0]) == ["e"]
+
+
+def test_the_batch_cap_applies_across_files_and_an_oversized_line_still_skips(tmp_path):
+    write(tmp_path, "capture-2026-10-23.jsonl", ["a"])
+    (tmp_path / "capture-2026-10-24.jsonl").write_text(line("big", prompt="x" * 5000) + line("b"))
+    size = len(json.dumps(to_ingest(row("a"), "x"), ensure_ascii=False).encode()) + 1
+    rows, cursor, skipped = Spool(tmp_path).read(10, max_bytes=size + size // 2)
+    assert ids(rows) == ["a"] and skipped == 1  # "big" alone is too large; "b" would not fit after "a"
+    assert cursor == Cursor("capture-2026-10-24.jsonl", len(line("big", prompt="x" * 5000).encode()))
 
 
 def test_a_dead_partial_tail_in_an_older_file_does_not_block_the_next_file(tmp_path):
