@@ -27,12 +27,12 @@ line), never the request. `/metrics` counts `tantive_capture_written_total` and 
 ## One line
 
 ```json
-{"time": "2026-10-21T12:00:00.000Z", "id": "8b8c846f-d861-4d21-a86b-4582c8e5209a", "prompt": "how do I fix this bug?", "format": "systemone", "route": "/v1/systemone", "tier": "MEDIUM", "score": 0.62, "task": "coding_debugging", "needs_tools": 0.2, "confidence": 0.627, "pieces": 1, "truncated": false, "prompt_tokens": 12, "latency_ms": 12.3, "variant": "small", "revision": "abc1234", "service_version": "0.7.0"}
+{"time": "2026-10-21T12:00:00.000Z", "id": "8b8c846f-d861-4d21-a86b-4582c8e5209a", "prompt": "how do I fix this bug?", "format": "systemone", "route": "/v1/systemone", "tier": "MEDIUM", "score": 0.62, "task": "coding_debugging", "needs_tools": 0.2, "confidence": 0.627, "pieces": 1, "truncated": false, "prompt_tokens": 12, "latency_ms": 12.3, "variant": "small", "revision": "abc1234", "service_version": "0.7.0", "terms_version": "v1"}
 ```
 
 `prompt` is the current request as classified (after LiteLLM's marker), not the conversation. `tier` is the native
 tier and `confidence` that tier's calibrated confidence (1 minus the normalised entropy of the tier probabilities, as
-in the responses). `needs_tools` is a probability. `variant` and `revision` say which weights decided.
+in the responses). `needs_tools` is a probability. `variant` and `revision` say which weights decided. `terms_version` is the version of the usage terms in force when the line was written (`S1D1_TERMS_VERSION`, `v1` by default).
 
 ## Mount a volume
 

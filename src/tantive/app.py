@@ -151,6 +151,7 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
             max_bytes=settings.capture_max_mb * 1024 * 1024,
             retention_days=settings.capture_retention_days,
             queue_size=settings.capture_queue,
+            terms_version=settings.terms_version,
         )
         if settings.capture_dir
         else None

@@ -44,6 +44,7 @@ class Capture:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         rng: Callable[[], float] = random.random,
         start: bool = True,
+        terms_version: str = "v1",
     ) -> None:
         self.dir = Path(directory)
         try:
@@ -56,6 +57,7 @@ class Capture:
         self.info, self.native = info, native
         self.sample, self.min_margin, self.max_bytes = sample, min_margin, max_bytes
         self.retention_days, self.clock, self.rng = retention_days, clock, rng
+        self.terms_version = terms_version
         self._queue: queue.Queue = queue.Queue(maxsize=queue_size)
         self._thread = threading.Thread(target=self._run, name="s1d1-capture", daemon=True)
         self._file = None
@@ -97,6 +99,7 @@ class Capture:
             "variant": self.info.variant,
             "revision": self.info.revision,
             "service_version": __version__,
+            "terms_version": self.terms_version,
         }
         try:
             self._queue.put_nowait((now, row))
