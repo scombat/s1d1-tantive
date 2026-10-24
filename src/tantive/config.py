@@ -7,6 +7,7 @@ import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Literal
+from urllib.parse import urlsplit
 
 LONG_PROMPTS: tuple[str, ...] = ("head", "tail", "head_tail", "chunks")
 CHUNK_SCORES: tuple[str, ...] = ("max", "mean", "median", "first", "length_weighted")
@@ -14,6 +15,8 @@ CHUNK_TASKS: tuple[str, ...] = ("sum_logits", "vote")
 FORMATS: tuple[str, ...] = ("systemone", "decisions", "chat", "classify", "predict")
 DEFAULT_FORMATS = "systemone,decisions,classify"
 CGROUP_CPU_MAX = "/sys/fs/cgroup/cpu.max"
+DEFAULT_CAPTURE_URL = "https://s1d1.qoo.gy/ingest"
+LOOPBACK_HOSTS: tuple[str, ...] = ("localhost", "127.0.0.1", "::1")
 
 
 class ConfigError(ValueError):
@@ -60,6 +63,12 @@ class Settings:
     capture_max_mb: int = 100
     capture_retention_days: int | None = None
     capture_queue: int = 10000
+    capture_send: bool = False
+    capture_url: str = DEFAULT_CAPTURE_URL
+    capture_token: str | None = None
+    capture_batch: int = 100
+    capture_send_seconds: int = 30
+    terms_version: str = "v1"
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Settings:
@@ -69,6 +78,13 @@ class Settings:
             raise ConfigError(f"S1D1_FORMATS: unknown format(s) {unknown}; choose among {', '.join(FORMATS)}")
         chunk_tokens = _int(env, "S1D1_CHUNK_TOKENS", default=1024, minimum=128, maximum=1024)
         chunk_overlap = _int(env, "S1D1_CHUNK_OVERLAP", default=64, minimum=0, maximum=chunk_tokens - 3)
+        capture_dir = env.get("S1D1_CAPTURE_DIR") or None
+        capture_send = env.get("S1D1_CAPTURE_SEND", "0") == "1"
+        capture_url = env.get("S1D1_CAPTURE_URL", "").strip() or DEFAULT_CAPTURE_URL
+        if capture_send:
+            if capture_dir is None:
+                raise ConfigError("S1D1_CAPTURE_SEND: sending needs S1D1_CAPTURE_DIR, which holds the local queue")
+            _check_capture_url(capture_url)
         return cls(
             formats=formats,
             model_dir=env.get("S1D1_MODEL_DIR", "/model"),
@@ -90,13 +106,35 @@ class Settings:
             port=_int(env, "S1D1_PORT", default=8788, minimum=1),
             root_path=env.get("S1D1_ROOT_PATH", ""),
             otlp_endpoint=env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or None,
-            capture_dir=env.get("S1D1_CAPTURE_DIR") or None,
+            capture_dir=capture_dir,
             capture_sample=_unit_float(env, "S1D1_CAPTURE_SAMPLE", default=1.0),
             capture_min_margin=_optional_float(env, "S1D1_CAPTURE_MIN_MARGIN"),
             capture_max_mb=_int(env, "S1D1_CAPTURE_MAX_MB", default=100, minimum=1),
             capture_retention_days=_optional_int(env, "S1D1_CAPTURE_RETENTION_DAYS", minimum=1),
             capture_queue=_int(env, "S1D1_CAPTURE_QUEUE", default=10000, minimum=1),
+            capture_send=capture_send,
+            capture_url=capture_url,
+            capture_token=env.get("S1D1_CAPTURE_TOKEN") or None,
+            capture_batch=_int(env, "S1D1_CAPTURE_BATCH", default=100, minimum=1, maximum=500),
+            capture_send_seconds=_int(env, "S1D1_CAPTURE_SEND_SECONDS", default=30, minimum=1, maximum=3600),
+            terms_version=env.get("S1D1_TERMS_VERSION", "").strip() or "v1",
         )
+
+
+def _check_capture_url(url: str) -> None:
+    """https, or http on a loopback host (tests); anything else would send prompts in clear text."""
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        raise ConfigError(f"S1D1_CAPTURE_URL: {url!r} is not a valid URL") from None
+    if parts.scheme == "https" and host:
+        return
+    if parts.scheme == "http" and host in LOOPBACK_HOSTS:
+        return
+    raise ConfigError(
+        f"S1D1_CAPTURE_URL: {url!r} must be https (http is allowed only on localhost, 127.0.0.1 or [::1])"
+    )
 
 
 def _choice(env: Mapping[str, str], name: str, allowed: tuple[str, ...], *, default: str) -> str:
