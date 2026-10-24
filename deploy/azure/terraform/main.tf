@@ -45,7 +45,7 @@ variable "s1d1_api_key" {
 variable "image" {
   description = "Image to run, one per model variant (full needs 2 GiB, small 1 GiB, tiny 512 MiB)."
   type        = string
-  default     = "ghcr.io/scombat/s1d1-tantive:0.7.0-full-onnx-int8"
+  default     = "ghcr.io/scombat/s1d1-tantive:0.8.0-full-onnx-int8"
 }
 
 variable "cpu" {

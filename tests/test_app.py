@@ -188,3 +188,28 @@ async def test_capacity_warning_when_a_full_window_exceeds_the_deadline(slow_fak
     assert warning["level"] == "warning"
     assert warning["predicted_ms_1024"] > 50
     assert warning["deadline_ms"] == 50
+
+
+async def test_info_shows_send_and_hides_the_token(fake_model, settings_factory, tmp_path):
+    import uuid
+
+    from tests.conftest import _client
+
+    app = create_app(
+        settings_factory(
+            S1D1_CAPTURE_SEND="1", S1D1_CAPTURE_DIR=str(tmp_path), S1D1_CAPTURE_TOKEN="s3cret"
+        ),
+        fake_model,
+    )
+    async for c in _client(app):
+        r = await c.get("/info")
+    send = r.json()["capture"]["send"]
+    assert send["enabled"] is True
+    assert send["url"] == "https://s1d1.qoo.gy/ingest"
+    assert str(uuid.UUID(send["instance_id"])) == send["instance_id"]
+    assert "s3cret" not in r.text
+
+
+async def test_send_is_absent_by_default(client):
+    send = (await client.get("/info")).json()["capture"]["send"]
+    assert send == {"enabled": False, "url": None, "instance_id": None}

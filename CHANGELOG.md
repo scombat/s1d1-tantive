@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.8.0 — 2026-10-24
+
+- Opt-in sending of the captured lines to a community ingestion: `S1D1_CAPTURE_SEND=1` (off by default, needs
+  `S1D1_CAPTURE_DIR`) starts a thread that posts the capture files in NDJSON batches to `S1D1_CAPTURE_URL` (default
+  `https://s1d1.qoo.gy/ingest`, `https` only except localhost), with an optional `S1D1_CAPTURE_TOKEN`,
+  `S1D1_CAPTURE_BATCH` and `S1D1_CAPTURE_SEND_SECONDS`. At-least-once delivery with a cursor in the capture folder,
+  back-off on failure, no redirect followed, and the token and prompts kept out of logs, `/info` and OpenTelemetry. New
+  counters `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total`;
+  `/info` reports `capture.send` (`enabled`, `url`, `instance_id`). `S1D1_TERMS_VERSION` (default `v1`) is written in
+  each captured line. Guide: the sending section of `docs/capture.md`.
+
 - New `image` workflow: pull requests that touch the Dockerfile, `uv.lock`, `pyproject.toml`, `checksums/` or `verify.py`
   build the small image from the Hub weights and run the `docker` tests (amd64, nothing pushed or signed).
 - Image references move to 0.7.0 in the README, the guides, the deployment templates and the Space files, so the templates

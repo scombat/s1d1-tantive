@@ -1,6 +1,6 @@
 # Hugging Face Docker Space: the published image, nothing built here (the weights are already inside it).
 # Bump the tag when a new release is published; keep the variant `full`, which fits CPU Basic (16 GB).
-FROM ghcr.io/scombat/s1d1-tantive:0.7.0-full-onnx-int8
+FROM ghcr.io/scombat/s1d1-tantive:0.8.0-full-onnx-int8
 
 # Docker Spaces run the container as uid 1000 (the image's own user is 10001; its files are world-readable and
 # the service writes nothing outside /tmp)

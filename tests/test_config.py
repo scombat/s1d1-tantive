@@ -193,3 +193,9 @@ def test_send_settings_are_read(tmp_path):
         5,
         "v2",
     )
+
+
+def test_capture_token_never_shows_in_a_repr():
+    s = Settings.from_env({"S1D1_CAPTURE_SEND": "1", "S1D1_CAPTURE_DIR": "/c", "S1D1_CAPTURE_TOKEN": "s3cret"})
+    assert s.capture_token == "s3cret"
+    assert "s3cret" not in repr(s)

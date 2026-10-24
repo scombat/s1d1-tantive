@@ -10,7 +10,7 @@ From 0.6.0 images are signed keyless: there is no key to trust, the signature is
 repository's `build` workflow (a short-lived Sigstore certificate) and recorded in the public Rekor log.
 
 ```bash
-cosign verify ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8 \
+cosign verify ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8 \
   --certificate-identity-regexp '^https://github.com/scombat/s1d1-tantive/\.github/workflows/build\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
@@ -25,14 +25,14 @@ Versions up to 0.5.0 were signed with the project's private key; `cosign.pub` at
 them, and only them:
 
 ```bash
-cosign verify --key cosign.pub ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8
+cosign verify --key cosign.pub ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8
 ```
 
 ## 2. The build provenance
 
 ```bash
 slsa-verifier verify-image ghcr.io/scombat/s1d1-tantive@sha256:<digest> \
-  --source-uri github.com/scombat/s1d1-tantive --source-tag v0.7.0
+  --source-uri github.com/scombat/s1d1-tantive --source-tag v0.8.0
 ```
 
 A pass proves the image was built by this repository's `build` workflow at that tag, with SLSA level 3 provenance
@@ -41,7 +41,7 @@ generated outside the build's own control. Use the list digest (`docker buildx i
 ## 3. The weights
 
 ```bash
-docker run --rm --entrypoint python ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8 \
+docker run --rm --entrypoint python ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8 \
   -m tantive.verify /model /model/checksums.json
 ```
 
@@ -53,7 +53,7 @@ in this repository's `checksums/` folder.
 ## 4. The labels and `/info`
 
 ```bash
-docker inspect --format '{{json .Config.Labels}}' ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8
+docker inspect --format '{{json .Config.Labels}}' ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8
 ```
 
 The labels `io.s1d1.model.repo`, `io.s1d1.model.revision` and `io.s1d1.model.sha256` say which Hub files the image
@@ -68,4 +68,4 @@ vulnerabilities before it is tagged.
 ## Use a private registry
 
 Pull with a read-only token (`docker login ghcr.io -u <user> --password-stdin`), or copy the image into your own
-registry (`az acr import --source ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8 ...`) and replay check 3 there.
+registry (`az acr import --source ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8 ...`) and replay check 3 there.

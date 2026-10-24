@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import os
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -65,7 +65,7 @@ class Settings:
     capture_queue: int = 10000
     capture_send: bool = False
     capture_url: str = DEFAULT_CAPTURE_URL
-    capture_token: str | None = None
+    capture_token: str | None = field(default=None, repr=False)
     capture_batch: int = 100
     capture_send_seconds: int = 30
     terms_version: str = "v1"

@@ -5,7 +5,7 @@ This page shows how to run s1d1-tantive, check that it is ready and make a first
 ## Run the image
 
 ```bash
-docker run --rm -p 8788:8788 ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8
+docker run --rm -p 8788:8788 ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8
 ```
 
 The image carries its weights under `/model`; there is one image per variant (`full`, `compact`, `small`, `tiny`:
@@ -14,7 +14,7 @@ Docker takes the right platform for the host. By default only three formats are 
 
 ```bash
 docker run --rm -p 8788:8788 -e S1D1_FORMATS=systemone,decisions,chat,classify,predict \
-  ghcr.io/scombat/s1d1-tantive:0.7.0-small-onnx-int8
+  ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8
 ```
 
 To harden it, add `--read-only --tmpfs /tmp`; the container already runs as a non-root user. `docker compose up --build`

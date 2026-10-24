@@ -10,11 +10,12 @@ from tantive import __version__
 from tantive.config import Settings
 from tantive.engine import Engine
 from tantive.model import ModelInfo
+from tantive.send import Sender
 from tantive.telemetry import SERVICE_NAME
 from tantive.tiers import TierSet
 
 
-def router(engine: Engine, settings: Settings, info: ModelInfo, native: TierSet) -> APIRouter:
+def router(engine: Engine, settings: Settings, info: ModelInfo, native: TierSet, sender: Sender | None = None) -> APIRouter:
     r = APIRouter(tags=["service"])
 
     @r.get("/health")
@@ -63,6 +64,12 @@ def router(engine: Engine, settings: Settings, info: ModelInfo, native: TierSet)
                 "sample": settings.capture_sample if settings.capture_dir else None,
                 "min_margin": settings.capture_min_margin,
                 "retention_days": settings.capture_retention_days,
+                # never the token
+                "send": {
+                    "enabled": sender is not None,
+                    "url": settings.capture_url if sender is not None else None,
+                    "instance_id": sender.instance if sender is not None else None,
+                },
             },
             "cost": None
             if cost is None

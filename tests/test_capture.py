@@ -204,12 +204,14 @@ async def test_every_adapter_path_captures_and_the_text_stays_out_of_stdout(
     assert row["format"] == "classify"
     assert info["capture"] == {
         "enabled": True, "dir": str(tmp_path), "sample": 1.0, "min_margin": None, "retention_days": None,
+        "send": {"enabled": False, "url": None, "instance_id": None},
     }  # fmt: skip
 
 
 async def test_info_when_capture_is_off(client):
     assert (await client.get("/info")).json()["capture"] == {
         "enabled": False, "dir": None, "sample": None, "min_margin": None, "retention_days": None,
+        "send": {"enabled": False, "url": None, "instance_id": None},
     }  # fmt: skip
 
 
