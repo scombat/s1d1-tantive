@@ -99,6 +99,7 @@ def _key(name: str) -> tuple[str, int] | None:
 class Spool:
     def __init__(self, directory: Path) -> None:
         self.dir = Path(directory)
+        self.full = False  # the last read stopped at `limit` or `max_bytes`, not at the end: more may follow
 
     def _files(self) -> list[tuple[tuple[str, int], str]]:
         """The capture files, oldest first by (day, index): the plain name is index 0 and sorts before -001."""
@@ -124,8 +125,10 @@ class Spool:
 
         A line is skipped (never returned, never logged) when it is not a JSON object or when its ingestion encoding
         alone exceeds `max_bytes`; the returned cursor moves past it, even when no row comes back, so committing never
-        gets stuck. A last line without its newline is still being written and waits.
+        gets stuck. A last line without its newline is still being written and waits. Afterwards `self.full` says
+        whether the read stopped at `limit` or `max_bytes` rather than at the end of the files.
         """
+        self.full = False
         files = self._files()
         saved = self._load()
         start, offset = 0, 0
@@ -160,6 +163,7 @@ class Spool:
                         before = Cursor(name, offset)
                         parsed = self._parse(raw, instance, max_bytes)
                         if parsed is not None and used + parsed[1] > max_bytes:
+                            self.full = True
                             return rows, before, skipped  # this line opens the next batch
                         offset += len(raw)
                         cursor = Cursor(name, offset)
@@ -169,6 +173,7 @@ class Spool:
                             rows.append(parsed[0])
                             used += parsed[1]
                             if len(rows) >= limit:
+                                self.full = True
                                 return rows, cursor, skipped
             except FileNotFoundError:  # purged between the listing and the read
                 pass
@@ -224,8 +229,9 @@ class Sender:
 
     The cursor moves on 2xx (sent) and on 400 or 413 (rejected: that batch will never be taken); any other answer,
     0 included, leaves it where it was, so the same lines go again after the wait. The wait is `interval` after a
-    batch was sent, rejected or there was nothing to send; after a failure it doubles each time, up to 600 s (or
-    `interval` when that is longer), and goes back to `interval` at the first result that is not a failure."""
+    batch was sent or rejected; none at all when that batch was full (`batch` lines, or the 1 MiB cap), so a backlog
+    drains batch after batch; after a failure it doubles each time, up to 600 s (or `interval` when that is longer),
+    and goes back to `interval` at the first result that is not a failure. Nothing to send waits `interval`."""
 
     def __init__(
         self,
@@ -248,6 +254,7 @@ class Sender:
         # as given
         self._wait: Callable[[float], object] = self._stop.wait if sleep is time.sleep else sleep
         self._failing = False
+        self._full = False  # the last batch sent or rejected was full: send the next one without waiting
         self._thread = threading.Thread(target=self._run, name="s1d1-send", daemon=True)
         if start:
             self.start()
@@ -263,6 +270,12 @@ class Sender:
 
     def run_once(self) -> str:
         """Send one batch: "sent", "empty", "rejected" or "failed"."""
+        self._full = False
+        result = self._send_batch()
+        self._failing = result == "failed"  # an outage ends at the first result that is not a failure
+        return result
+
+    def _send_batch(self) -> str:
         rows, cursor, skipped = self.spool.read(self.batch, MAX_BATCH_BYTES)
         if not rows:
             if not skipped:
@@ -275,7 +288,7 @@ class Sender:
         status = self._post(self.url, self.token, body)
         if 200 <= status < 300 or status in REJECTED:
             self.spool.commit(cursor)
-            self._failing = False
+            self._full = self.spool.full
             if skipped:  # counted when the cursor passes them, so a retried batch does not count them again
                 metrics().capture_send_rejected(skipped)
                 log_event("capture_send_skipped", level=logging.WARNING, lines=skipped)
@@ -288,7 +301,6 @@ class Sender:
         metrics().capture_send_failed()
         if not self._failing:  # one line per outage
             log_event("capture_send_failed", level=logging.WARNING, status=status)
-        self._failing = True
         return "failed"
 
     def _run(self) -> None:
@@ -300,9 +312,14 @@ class Sender:
                 metrics().capture_send_failed()
                 if not self._failing:
                     log_event("capture_send_error", level=logging.WARNING, error=type(e).__name__)
-                self._failing = True
+                self._failing, self._full = True, False
                 result = "failed"
-            wait = min(wait * 2, max(MAX_WAIT, self.interval)) if result == "failed" else self.interval
+            if result == "failed":
+                wait = min(wait * 2, max(MAX_WAIT, self.interval))
+            else:
+                wait = self.interval
+                if self._full:
+                    continue  # a backlog: the next batch now (the loop checks the stop event first)
             if self._stop.is_set():
                 return
             self._wait(wait)

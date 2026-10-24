@@ -507,6 +507,98 @@ def test_the_loop_survives_an_unexpected_error(tmp_path, capsys, logs):
     assert "SECRET-PROMPT-TEXT" not in json.dumps(event)
 
 
+def drive(s: Sender, events: list, waits_before_stop: int) -> None:
+    """Run the real loop in the foreground; the fake sleep records each wait and closes after a few."""
+
+    def sleep(seconds):
+        events.append(("wait", seconds))
+        if sum(1 for e in events if e[0] == "wait") >= waits_before_stop:
+            s.close()
+
+    s._wait = sleep
+    s._run()
+
+
+def recording_sender(tmp_path, events: list, codes, batch: int) -> Sender:
+    codes = iter(codes)
+
+    def post(url, token, body):
+        events.append(("post", sent_ids(body)))
+        return next(codes)
+
+    return Sender(
+        str(tmp_path), url="http://127.0.0.1:9/ingest", token=None, batch=batch, interval=1, post=post, start=False
+    )
+
+
+def test_a_backlog_drains_without_waiting_between_full_batches(tmp_path):
+    write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b", "c", "d", "e"])
+    events: list = []
+    s = recording_sender(tmp_path, events, codes=[200, 200, 200], batch=2)
+    drive(s, events, waits_before_stop=2)
+    assert events == [
+        ("post", ["a", "b"]),  # full: the next batch at once
+        ("post", ["c", "d"]),  # full: the next batch at once
+        ("post", ["e"]),  # not full: the spool is drained
+        ("wait", 1),
+        ("wait", 1),  # after the empty result
+    ]
+
+
+def test_a_full_rejected_batch_does_not_wait_either(tmp_path):
+    write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b", "c"])
+    events: list = []
+    s = recording_sender(tmp_path, events, codes=[400, 200], batch=2)
+    drive(s, events, waits_before_stop=1)
+    assert events == [("post", ["a", "b"]), ("post", ["c"]), ("wait", 1)]
+
+
+def test_a_batch_stopped_by_the_byte_cap_counts_as_full(tmp_path):
+    big = "x" * 400_000  # two lines fit in 1 MiB, not three
+    write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b", "c"], big=big)
+    events: list = []
+    s = recording_sender(tmp_path, events, codes=[200, 200], batch=100)
+    drive(s, events, waits_before_stop=1)
+    assert events == [("post", ["a", "b"]), ("post", ["c"]), ("wait", 1)]
+
+
+def test_a_failure_after_a_full_batch_backs_off(tmp_path):
+    write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b", "c"])
+    events: list = []
+    s = recording_sender(tmp_path, events, codes=[200, 503, 200], batch=2)
+    drive(s, events, waits_before_stop=2)
+    assert events == [("post", ["a", "b"]), ("post", ["c"]), ("wait", 2), ("post", ["c"]), ("wait", 1)]
+
+
+def test_the_spool_says_when_a_read_stopped_before_the_end(tmp_path):
+    write(tmp_path, "capture-2026-10-24.jsonl", ["a", "b"])
+    spool = Spool(tmp_path)
+    spool.read(2)
+    assert spool.full
+    spool.read(3)
+    assert not spool.full
+    size = len(json.dumps(to_ingest(row("a"), instance_id(tmp_path)), ensure_ascii=False).encode()) + 1
+    spool.read(10, max_bytes=size)
+    assert spool.full
+
+
+@pytest.mark.parametrize("between", ["empty", "skipped only"])
+def test_any_result_but_a_failure_ends_the_outage(tmp_path, capsys, logs, between):
+    write(tmp_path, "capture-2026-10-23.jsonl", ["a"])
+    s = sender(tmp_path, codes=[503, 503])
+    assert s.run_once() == "failed"
+    (tmp_path / "capture-2026-10-23.jsonl").unlink()  # purged by the retention
+    if between == "empty":
+        assert s.run_once() == "empty"
+    else:
+        (tmp_path / "capture-2026-10-24.jsonl").write_text("garbage\n")
+        assert s.run_once() == "rejected"
+    write(tmp_path, "capture-2026-10-25.jsonl", ["b"])
+    assert s.run_once() == "failed"
+    failed = [x for x in capsys.readouterr().out.splitlines() if json.loads(x)["event"] == "capture_send_failed"]
+    assert len(failed) == 2  # the second outage is logged too
+
+
 def test_close_stops_the_thread_promptly(tmp_path):
     write(tmp_path, "capture-2026-10-24.jsonl", ["a"])
     calls = []
