@@ -75,12 +75,31 @@ class Metrics:
         self._capture_dropped = meter.create_counter(
             "tantive_capture_dropped", description="Decisions lost by the capture (full queue or write error)"
         )
+        self._capture_sent = meter.create_counter(
+            "tantive_capture_sent", description="Captured lines accepted by the community ingestion"
+        )
+        self._capture_send_failed = meter.create_counter(
+            "tantive_capture_send_failed", description="Batches not delivered (network error or retryable status)"
+        )
+        self._capture_send_rejected = meter.create_counter(
+            "tantive_capture_send_rejected",
+            description="Captured lines given up: refused by the ingestion (400, 413), unreadable or oversized",
+        )
 
     def capture_written(self) -> None:
         self._capture_written.add(1)
 
     def capture_dropped(self) -> None:
         self._capture_dropped.add(1)
+
+    def capture_sent(self, n: int) -> None:
+        self._capture_sent.add(n)
+
+    def capture_send_failed(self) -> None:
+        self._capture_send_failed.add(1)
+
+    def capture_send_rejected(self, n: int) -> None:
+        self._capture_send_rejected.add(n)
 
     def record_request(self, route: str, fmt: str, seconds: float, tier: str | None, tokens: int | None) -> None:
         self._latency.record(seconds, {"route": route, "format": fmt})

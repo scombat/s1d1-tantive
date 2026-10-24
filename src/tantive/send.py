@@ -1,23 +1,36 @@
-"""Opt-in sending of the captures to the community ingestion (docs/26): the local spool over the capture files.
+"""Opt-in sending of the captures to the community ingestion (docs/26): the local spool over the capture files and
+the thread that posts them.
 
 The capture files are the queue. A cursor (`.send-cursor`: file name and byte offset) marks what has been delivered;
 it only moves when the caller commits it, so a failed delivery sends the same lines again. The cursor and the
 instance id (`.instance-id`) live in the capture directory, where the retention purge (capture-*.jsonl only) never
-looks. The text of a prompt goes to the ingestion and nowhere else: nothing here logs or prints a line's content.
+looks. The text of a prompt goes to the ingestion and nowhere else: nothing here logs or prints a line's content,
+the token or the URL (a log line carries a status code, a count or an error class name, nothing more).
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
+import threading
+import time
+import urllib.error
+import urllib.request
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from tantive import __version__
 from tantive.capture import NAME
+from tantive.telemetry import log_event, metrics
 
 INSTANCE_FILE = ".instance-id"
 CURSOR_FILE = ".send-cursor"
+MAX_BATCH_BYTES = 1_048_576
+MAX_WAIT = 600.0  # seconds: the longest back-off after repeated failures
+REJECTED = frozenset({400, 413})  # the ingestion will never take this batch: skip it
 
 # v1 prediction key -> key of the captured line (route, pieces, truncated, token counts, latency and the service
 # version stay local)
@@ -176,3 +189,120 @@ class Spool:
         out = to_ingest(row, instance)
         size = len(json.dumps(out, ensure_ascii=False).encode()) + 1
         return (out, size) if size <= max_bytes else None
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect is a failure: following it would send the token and the prompts to another address."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_opener = urllib.request.build_opener(_NoRedirect)
+
+
+def post_ndjson(url: str, token: str | None, body: bytes, timeout: float = 10.0) -> int:
+    """POST one NDJSON batch: the HTTP status, or 0 when no answer came (network error, timeout, bad URL).
+
+    Never raises. Redirects are not followed (their 3xx code comes back, which the sender treats as a failure)."""
+    headers = {"Content-Type": "application/x-ndjson", "User-Agent": f"s1d1-tantive/{__version__}"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        with _opener.open(request, timeout=timeout) as response:
+            return int(response.status)
+    except urllib.error.HTTPError as e:
+        e.close()
+        return int(e.code)
+    except Exception:  # URLError, timeouts, OSError, a malformed URL: no answer
+        return 0
+
+
+class Sender:
+    """One daemon thread (`s1d1-send`) that posts the spool batch by batch to the ingestion.
+
+    The cursor moves on 2xx (sent) and on 400 or 413 (rejected: that batch will never be taken); any other answer,
+    0 included, leaves it where it was, so the same lines go again after the wait. The wait is `interval` after a
+    batch was sent, rejected or there was nothing to send; after a failure it doubles each time, up to 600 s (or
+    `interval` when that is longer), and goes back to `interval` at the first result that is not a failure."""
+
+    def __init__(
+        self,
+        directory: str,
+        *,
+        url: str,
+        token: str | None,
+        batch: int,
+        interval: float,
+        post: Callable[[str, str | None, bytes], int] = post_ndjson,
+        sleep: Callable[[float], object] = time.sleep,
+        start: bool = True,
+    ) -> None:
+        self.spool = Spool(Path(directory))
+        self.instance = instance_id(self.spool.dir)
+        self.url, self.token, self.batch, self.interval = url, token, batch, float(interval)
+        self._post = post
+        self._stop = threading.Event()
+        # the real thread waits on the stop event, so close() interrupts the wait; an injected sleep (tests) is used
+        # as given
+        self._wait: Callable[[float], object] = self._stop.wait if sleep is time.sleep else sleep
+        self._failing = False
+        self._thread = threading.Thread(target=self._run, name="s1d1-send", daemon=True)
+        if start:
+            self.start()
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def close(self) -> None:
+        """Stop the loop; a batch in flight finishes (or times out) first."""
+        self._stop.set()
+        if self._thread.is_alive() and self._thread is not threading.current_thread():
+            self._thread.join(15)
+
+    def run_once(self) -> str:
+        """Send one batch: "sent", "empty", "rejected" or "failed"."""
+        rows, cursor, skipped = self.spool.read(self.batch, MAX_BATCH_BYTES)
+        if not rows:
+            if not skipped:
+                return "empty"
+            self.spool.commit(cursor)  # only unreadable or oversized lines: pass them
+            metrics().capture_send_rejected(skipped)
+            log_event("capture_send_skipped", level=logging.WARNING, lines=skipped)
+            return "rejected"
+        body = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows).encode()
+        status = self._post(self.url, self.token, body)
+        if 200 <= status < 300 or status in REJECTED:
+            self.spool.commit(cursor)
+            self._failing = False
+            if skipped:  # counted when the cursor passes them, so a retried batch does not count them again
+                metrics().capture_send_rejected(skipped)
+                log_event("capture_send_skipped", level=logging.WARNING, lines=skipped)
+            if status in REJECTED:
+                metrics().capture_send_rejected(len(rows))
+                log_event("capture_send_rejected", level=logging.WARNING, status=status)
+                return "rejected"
+            metrics().capture_sent(len(rows))
+            return "sent"
+        metrics().capture_send_failed()
+        if not self._failing:  # one line per outage
+            log_event("capture_send_failed", level=logging.WARNING, status=status)
+        self._failing = True
+        return "failed"
+
+    def _run(self) -> None:
+        wait = self.interval
+        while not self._stop.is_set():
+            try:
+                result = self.run_once()
+            except Exception as e:  # a disk error, a bug: never the end of the thread, never the content
+                metrics().capture_send_failed()
+                if not self._failing:
+                    log_event("capture_send_error", level=logging.WARNING, error=type(e).__name__)
+                self._failing = True
+                result = "failed"
+            wait = min(wait * 2, max(MAX_WAIT, self.interval)) if result == "failed" else self.interval
+            if self._stop.is_set():
+                return
+            self._wait(wait)
