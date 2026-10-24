@@ -108,4 +108,10 @@ The first checks the keyless signature (0.6.0 and later; `cosign.pub` verifies 0
 Business Source License 1.1: free for non-production use, production use by agreement with the licensor, and Apache-2.0
 on the change date. See [LICENSE](LICENSE).
 
+| Project | Licence | Why |
+|---|---|---|
+| [s1d1-router](https://huggingface.co/scombat/s1d1-router) (the model) | Apache-2.0; the base model, mmBERT-base, is MIT | open weights, reusable anywhere |
+| [s1d1-alliance](https://github.com/scombat/s1d1-alliance) (the free community instance) | Apache-2.0 | community infrastructure, made to be forked |
+| s1d1-tantive (this repository) | BSL 1.1, which becomes Apache-2.0 four years after each release | free for non-production use; production use by agreement while it funds the project |
+
 Security: see [SECURITY.md](SECURITY.md).
