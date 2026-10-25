@@ -26,9 +26,10 @@ FOLDERS = {
     "AWS": "deploy/aws",
     "Heroku": "deploy/heroku",
 }
+# no "Deploy on Hugging Face" button while the Space scombat/s1d1-tantive does not exist (the duplicate link answers
+# 401); deploy/huggingface/ stays, marked "not published yet", and the guide test below keeps its link ready
 ALTS = [
     "Deploy to Azure",
-    "Deploy on Hugging Face",
     "Deploy to Render",
     "Run on Google Cloud",
     "Launch on AWS",
@@ -76,7 +77,7 @@ def test_the_section_is_a_sentence_a_row_of_buttons_and_a_caption():
     assert not [line for line in deploy_section().splitlines() if line.startswith("|")], "no table any more"
 
 
-def test_seven_buttons_in_order_each_a_markdown_image_link():
+def test_the_buttons_in_order_each_a_markdown_image_link():
     assert [m[0] for m in BUTTON.findall(deploy_section())] == ALTS
     row = paragraphs()[1]
     assert not BUTTON.sub("", row).strip(), "nothing but buttons on the row (no text button, no bare URL)"
@@ -113,7 +114,6 @@ def test_official_buttons_keep_their_image_and_their_exact_url():
 
 
 GUIDES = {
-    "Deploy on Hugging Face": "deploy/huggingface/PUBLISH.md",
     "Launch on AWS": "deploy/aws/README.md",
 }
 
@@ -127,7 +127,6 @@ def test_buttons_without_a_ready_target_open_their_guide():
 
 # simple-icons has no Amazon Web Services icon (checked 2026-10-21: no `amazon*` or `aws*` slug): no logo for AWS
 BADGES = {
-    "Deploy on Hugging Face": ("FFD21E", "huggingface"),
     "Launch on AWS": ("FF9900", None),
 }
 
@@ -144,9 +143,16 @@ def test_providers_without_an_official_button_get_a_shields_badge():
         assert query.get("logo") == ([logo] if logo else None), alt
 
 
+def test_the_huggingface_guide_says_it_is_not_published_and_the_readme_has_no_button_for_it():
+    head = (ROOT / "deploy/huggingface/PUBLISH.md").read_text().split("\n## ", 1)[0]
+    assert "Not published yet" in head
+    assert "https://huggingface.co/spaces/scombat/s1d1-tantive?duplicate=true" in head
+    readme = (ROOT / "README.md").read_text()
+    assert "Deploy on Hugging Face" not in readme and "duplicate=true" not in readme
+
+
 def test_guides_say_at_the_top_how_to_replace_the_button_link():
     ready_link = {
-        "deploy/huggingface/PUBLISH.md": "https://huggingface.co/spaces/scombat/s1d1-tantive?duplicate=true",
         "deploy/aws/README.md": "console.aws.amazon.com/cloudformation",
     }
     for guide, link in ready_link.items():

@@ -60,7 +60,7 @@ replica carries the load. `chat` lets llama-swap or any OpenAI-style client addr
 
 *A public link to try the routing, no traffic to speak of.*
 
-- Image: `tiny` (512 MiB). Target: [Render](../deploy/render/README.md) or a [Hugging Face Space](../deploy/huggingface/PUBLISH.md).
+- Image: `tiny` (512 MiB). Target: [Render](../deploy/render/README.md) or a [Hugging Face Space](../deploy/huggingface/PUBLISH.md) (not published yet).
 
 ```bash
 S1D1_FORMATS=systemone,decisions,classify

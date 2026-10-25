@@ -2,11 +2,17 @@
 
 ## Unreleased
 
+- README: a line near the top pointing to the free hosted API and the in-browser demo, one tier vocabulary
+  (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) in the Quickstart, the tests and the LiteLLM section, and the LiteLLM
+  1.106 `config.yaml` block. The "Deploy on Hugging Face" button is removed until the Space exists; `deploy/huggingface/`
+  is kept and marked "not published yet".
+- Pointers to private documents removed from the changelog and `docs/capture.md`.
+
 ## 0.8.1 — 2026-10-25
 
 Upgrade recommended for amd64 deployments.
 
-- The int8 weights of the four variants are re-quantized with `reduce_range` (7-bit weights; research repo, docs/28),
+- The int8 weights of the four variants are re-quantized with `reduce_range` (7-bit weights),
   which fixes wrong scores on x86 CPUs without VNNI (e.g. Haswell, AVX2 only): ONNX Runtime's U8S8 kernel there adds
   pairs of products into a saturated int16. `small` was the variant affected: "hi" scored 1.0 instead of 0.04, and
   its tiers agreed with fp32 on 49 % of prompts instead of 90 %. `checksums/` pins the new Hub revisions; only
@@ -207,7 +213,7 @@ Fixes from the user's review of 0.1.1; no change to the wire formats.
 
 - The window, score centre and scale are read from `variant.json` (`max_length`, `score_center`, `score_scale`),
   with the training values as fallback, and shown in `/info`. The Hub's `variant.json` files do not carry them
-  yet; they will be added from the research repository together with `sigma`.
+  yet.
 - `S1D1_DEFAULT_SIGMA` (float > 0, default 0.10) replaces the hard-coded fallback when `variant.json` has no
   `sigma`; a `sigma` from the weights always wins.
 - ONNX Runtime session options written out explicitly (optimisation level, execution mode).
@@ -244,7 +250,7 @@ TEI `/predict`. JSON logs without prompt text, OpenTelemetry traces and metrics,
   (same publisher as the SDK already used) so the OTLP export and the Prometheus scrape carry the same five series.
 
 Latency, small int8 variant, M4 Max, one client, HTTP round trip on `/v1/systemone` (50 requests per length;
-docs/21 § 5.1 measured the previous raw server at 3.3 / 20.6 / 105.7 ms p50):
+an earlier measurement of the previous raw server gave 3.3 / 20.6 / 105.7 ms p50):
 
 | prompt tokens | p50 | p99 |
 |---|---|---|

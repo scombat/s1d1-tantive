@@ -12,6 +12,11 @@ whether the prompt needs tools. Four ONNX int8 variants (`full`, `compact`, `sma
 Router and any decision client, chat-completions for older LiteLLM, vLLM-style `/classify` and TEI-style `/predict`
 for everything else. One image per variant, for amd64 and arm64, signed and built with SLSA 3 provenance.
 
+**Try it without installing anything:** the free hosted API at <https://s1d1.qoo.gy> (what you send is kept,
+anonymised and used to retrain s1d1; read the terms there first), or the
+[in-browser demo](https://huggingface.co/spaces/scombat/s1d1-router-demo), which runs in your browser and sends nothing.
+To keep your prompts on your network, run the image below.
+
 ## What you get
 
 - **Five formats on one model**: System One, OpenAI Decisions, chat-completions, vLLM `/classify`, TEI `/predict`, enabled by `S1D1_FORMATS`.
@@ -29,9 +34,10 @@ for everything else. One image per variant, for amd64 and arm64, signed and buil
 
 One folder per target under `deploy/`, same image and variables everywhere.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fscombat%2Fs1d1-tantive%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json) [![Deploy on Hugging Face](https://img.shields.io/badge/Deploy%20on%20Hugging%20Face-FFD21E?logo=huggingface&logoColor=black&style=for-the-badge)](deploy/huggingface/PUBLISH.md) [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/scombat/s1d1-tantive) [![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/scombat/s1d1-tantive&dir=deploy/gcp) [![Launch on AWS](https://img.shields.io/badge/Launch%20on%20AWS-FF9900?style=for-the-badge)](deploy/aws/README.md) [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://www.heroku.com/deploy?template=https://github.com/scombat/s1d1-tantive)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fscombat%2Fs1d1-tantive%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json) [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/scombat/s1d1-tantive) [![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/scombat/s1d1-tantive&dir=deploy/gcp) [![Launch on AWS](https://img.shields.io/badge/Launch%20on%20AWS-FF9900?style=for-the-badge)](deploy/aws/README.md) [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://www.heroku.com/deploy?template=https://github.com/scombat/s1d1-tantive)
 
-A button that opens a guide instead of the provider has one step left for you, described in that guide.
+A button that opens a guide instead of the provider has one step left for you, described in that guide. A Hugging Face
+Space target is prepared in [`deploy/huggingface/`](deploy/huggingface/PUBLISH.md) but not published yet, so it has no button.
 
 ## Documentation
 
@@ -59,29 +65,28 @@ curl localhost:8788/ready    # {"ready":true} once the model is warm, a few seco
 ```bash
 curl -s localhost:8788/v1/systemone -H 'content-type: application/json' -d '{
   "state": "What is the capital of Australia?",
-  "questions": {"tier": {"type": "choice", "criteria": {"TRIVIAL": "", "LOW": "", "MEDIUM": "", "HIGH": "", "EXPERT": ""}}}}'
+  "questions": {"tier": {"type": "choice", "criteria": {"SIMPLE": "", "MEDIUM": "", "COMPLEX": "", "REASONING": ""}}}}'
 ```
 
-The answer, trimmed: `{"answers": {"tier": {"choice": "TRIVIAL", "confidence": 0.83, ...}}, "routing": {...}}`.
-LiteLLM users: [docs/litellm.md](docs/litellm.md).
+The answer, trimmed: `{"answers": {"tier": {"choice": "SIMPLE", "confidence": 1.0, ...}}, "routing": {"complexity_score": 0.01, ...}}`.
+The four tiers are LiteLLM's; the service also speaks its five native tiers (`TRIVIAL` to `EXPERT`), see
+[docs/formats.md](docs/formats.md). LiteLLM users: [the LiteLLM section](#litellm) below.
 
 ## Test it
 
-Three prompts of increasing complexity, and the tier each lands on with the default tiers:
+Three prompts of increasing complexity, with the tier and score each gets (measured on the 0.8.1 `small` image; needs `jq`):
 
 ```bash
-curl -s localhost:8788/classify -H 'content-type: application/json' -d '{"input": "Hello"}'    # label: TRIVIAL
+for p in "Hello" "Write a Terraform module for an Azure Container App" \
+  "Design a multi-region active-active payment system and prove its idempotency protocol is safe under network partition"; do
+  curl -s localhost:8788/v1/systemone -H 'content-type: application/json' -d '{"state": "'"$p"'", "questions": {"tier":
+    {"type": "choice", "criteria": {"SIMPLE": "", "MEDIUM": "", "COMPLEX": "", "REASONING": ""}}}}' |
+    jq -c '[.answers.tier.choice, .routing.complexity_score]'
+done    # ["SIMPLE",0.02]  ["COMPLEX",0.608]  ["COMPLEX",0.77]
 ```
 
-```bash
-curl -s localhost:8788/classify -H 'content-type: application/json' -d '{"input": "Write a Terraform module for an Azure Container App"}'    # label: MEDIUM
-```
-
-```bash
-curl -s localhost:8788/classify -H 'content-type: application/json' -d '{"input": "Design a multi-region active-active payment system and prove its idempotency protocol is safe under network partition"}'    # label: HIGH
-```
-
-`GET /info` reports the loaded variant, its revision and the tier bounds.
+`GET /info` reports the loaded variant and the tier bounds. The same prompts on `/classify` use the native five tiers
+(`TRIVIAL`, `MEDIUM`, `HIGH` for these three).
 
 ## Verify the image
 
@@ -99,10 +104,35 @@ The first checks the keyless signature (0.6.0 and later; `cosign.pub` verifies 0
 
 ## LiteLLM
 
-1. *Add Model*: mode *Decisions*, provider `laya`, model `multilingual`, `api_base` = this service's URL.
-2. *Auto Router*: classifier `oss_classifier` pointing at that model, a model for each of LiteLLM's tiers (`SIMPLE`,
-   `MEDIUM`, `COMPLEX`, `REASONING`), `classifier_fallback: default_model`.
-3. *Test Routing* on a few prompts. The GUI and `curl` routes, side by side: [docs/litellm.md](docs/litellm.md).
+LiteLLM 1.106 or later (tested with 1.106.4), in `config.yaml`:
+
+```yaml
+model_list:
+  # ... your four models: cheap, medium, strong, reasoning
+  - model_name: s1d1-auto
+    litellm_params:
+      model: auto_router/complexity_router
+      complexity_router_default_model: medium
+      complexity_router_config:
+        classifier_type: oss_classifier
+        opensource_classifier_config:
+          provider: laya
+          model: multilingual
+          api_base: http://localhost:8788   # this service's root; LiteLLM appends /v1/systemone
+          timeout_ms: 1000
+        classifier_fallback: default_model
+        tiers:
+          SIMPLE: cheap
+          MEDIUM: medium
+          COMPLEX: strong
+          REASONING: reasoning
+```
+
+Replace the model names and `api_base` with yours (the free hosted API is `https://s1d1.qoo.gy/api`; read its terms
+first). Then call `"model": "s1d1-auto"`. If the service is slow or unreachable, LiteLLM uses the default model. The
+admin-GUI route (*Add Model* with mode *Decisions*, then *Auto Router*, then *Test Routing*) and the `curl` route are
+side by side in [docs/litellm.md](docs/litellm.md). `fallback_tier` and `tier_definitions` belong to LiteLLM Enterprise
+custom tiers and are not part of this path.
 
 ## Licence
 
