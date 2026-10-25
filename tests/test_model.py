@@ -1,6 +1,8 @@
 import importlib
+import json
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -112,7 +114,12 @@ def test_parity_with_hub_loader(model_dir):
     assert [a.complexity_score for a in again] == [o.complexity_score for o in ours]
     assert ours[-1].prompt_tokens == 1024
     assert model.count_tokens(PROMPTS[-1]) == 1024
-    assert model.info.sigma_source == "default" and model.info.sigma == 0.10
+    # the Hub's variant.json carries sigma since 2026-10-20; older snapshots fall back to the default
+    sigma = json.loads((Path(model_dir) / "variant.json").read_text()).get("sigma")
+    if sigma is None:
+        assert model.info.sigma_source == "default" and model.info.sigma == 0.10
+    else:
+        assert model.info.sigma_source == "variant.json" and model.info.sigma == sigma
     assert (model.info.max_length, model.info.score_center, model.info.score_scale) == (1024, 0.5, 0.25)
 
 

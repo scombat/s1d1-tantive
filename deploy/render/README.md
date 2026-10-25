@@ -11,7 +11,7 @@ one if its GitHub app is installed on it). Checked on render.com/docs on 2026-10
 
 ## Facts
 
-- Image: `ghcr.io/scombat/s1d1-tantive:0.8.0-tiny-onnx-int8`
+- Image: `ghcr.io/scombat/s1d1-tantive:0.8.1-tiny-onnx-int8`
 - RAM: 512 MiB (Free plan, checked 2026-10-21)
 - Status: needs public repository
 - Still to do (you): make the repository public; nothing else is needed, the images are already public.
@@ -27,7 +27,7 @@ or `full` (2 GiB) choose the `1c-2g` plan (1 CPU, 2 GB) and change the image tag
 
 ```yaml
     image:
-      url: ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8
+      url: ghcr.io/scombat/s1d1-tantive:0.8.1-small-onnx-int8
     plan: 1c-2g
 ```
 
@@ -44,7 +44,7 @@ or `full` (2 GiB) choose the `1c-2g` plan (1 CPU, 2 GB) and change the image tag
 
 ## Deploy by hand
 
-New → Web Service → Existing Image → `ghcr.io/scombat/s1d1-tantive:0.8.0-tiny-onnx-int8`, instance type Free,
+New → Web Service → Existing Image → `ghcr.io/scombat/s1d1-tantive:0.8.1-tiny-onnx-int8`, instance type Free,
 Advanced → Health Check Path `/ready`, and the environment variables above.
 
 ## Terraform

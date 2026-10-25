@@ -25,6 +25,12 @@ The `image` workflow builds and tests the small image on pull requests that touc
 pinned weights, so a Dependabot bump of the base image is verified before it merges. The `docker` tests run locally the
 same way: `uv run pytest -m docker -q`.
 
+It then runs the int8 guard on that image (`tools/int8_guard.py`): the image's python under `qemu-x86_64 -cpu Haswell`,
+a CPU without VNNI, where the U8S8 int8 kernel of ONNX Runtime can saturate (the small scored "hi" 1.0 before 0.8.1).
+The guard compares the scores of `tests/fixtures/int8_probe.json` with their fp32 references and refuses to pass on a
+CPU with VNNI. When the weights change for another model, rewrite the references from its fp32 export
+(`uv run python -I tools/int8_guard.py reference <fp32 folder> --source "<where it comes from>"`).
+
 To build an image locally, from the Hub (default) or from a folder `weights/<variant>/` you provide
 (`WEIGHTS_SRC=local`); either way every file is verified against `checksums/<variant>.json` and a mismatch fails the
 build with the file name:

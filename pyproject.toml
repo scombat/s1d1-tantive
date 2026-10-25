@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tantive"
-version = "0.8.0"
+version = "0.8.1"
 description = "The vessel that carries the s1d1 router: a decision service for LiteLLM and other clients"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -1,0 +1,189 @@
+{
+  "about": "Probe of tools/int8_guard.py: prompts written for this test (none from a dataset), fp32 scores of the small variant computed by `int8_guard.py reference` with tantive's OnnxModel.",
+  "reference": {
+    "source": "students/v7_small_vocab32k/model of the research repo (the source of scombat/s1d1-router-6src-small-onnx-int8), exported to fp32 ONNX by its pipeline/07_variants.py make-onnx without --int8",
+    "file": "model.onnx",
+    "sha256": "4593aa70cb90ad99ab45ec2cada8880486cc70da93b2022079dc1d1d97dd3a4e",
+    "onnxruntime": "1.31.0",
+    "machine": "arm64",
+    "date": "2026-10-25"
+  },
+  "prompts": [
+    {
+      "text": "hi",
+      "fp32": 0.01
+    },
+    {
+      "text": "hello",
+      "fp32": 0.016
+    },
+    {
+      "text": "thanks",
+      "fp32": 0.01
+    },
+    {
+      "text": "bonjour",
+      "fp32": 0.043
+    },
+    {
+      "text": "What is the capital of Portugal?",
+      "fp32": 0.031
+    },
+    {
+      "text": "Translate 'good morning' into Spanish.",
+      "fp32": 0.103
+    },
+    {
+      "text": "Quelle heure est-il à Tokyo quand il est midi à Paris ?",
+      "fp32": 0.177
+    },
+    {
+      "text": "Wie viele Tage hat ein Schaltjahr?",
+      "fp32": 0.167
+    },
+    {
+      "text": "Give me three synonyms for 'happy'.",
+      "fp32": 0.178
+    },
+    {
+      "text": "Write a haiku about autumn rain.",
+      "fp32": 0.238
+    },
+    {
+      "text": "Résume en deux phrases l'intrigue de Roméo et Juliette.",
+      "fp32": 0.253
+    },
+    {
+      "text": "Explain the difference between a list and a tuple in Python.",
+      "fp32": 0.179
+    },
+    {
+      "text": "Write a Python function that checks whether a string is a palindrome, ignoring case and punctuation.",
+      "fp32": 0.267
+    },
+    {
+      "text": "¿Cuál es la diferencia entre 'ser' y 'estar'? Dame ejemplos.",
+      "fp32": 0.23
+    },
+    {
+      "text": "What is 17 times 23?",
+      "fp32": 0.149
+    },
+    {
+      "text": "Solve for x: 3x + 7 = 22.",
+      "fp32": 0.211
+    },
+    {
+      "text": "Prove that the square root of 2 is irrational.",
+      "fp32": 0.306
+    },
+    {
+      "text": "Search the web for today's weather forecast in Lyon and tell me if I need an umbrella.",
+      "fp32": 0.216
+    },
+    {
+      "text": "Book a table for two at an Italian restaurant near me tomorrow at 8 pm.",
+      "fp32": 0.203
+    },
+    {
+      "text": "Send an email to my team saying the meeting is moved to Thursday.",
+      "fp32": 0.202
+    },
+    {
+      "text": "Look up the current EUR to USD exchange rate and convert 250 euros.",
+      "fp32": 0.216
+    },
+    {
+      "text": "Write a SQL query that returns the five customers with the highest total order value in 2025, from tables customers(id, name) and orders(id, customer_id, amount, created_at).",
+      "fp32": 0.283
+    },
+    {
+      "text": "Refactor this JavaScript to use async/await: fetch(url).then(r => r.json()).then(data => console.log(data)).catch(e => console.error(e));",
+      "fp32": 0.248
+    },
+    {
+      "text": "Debug this: my React component re-renders forever when I call setState inside useEffect without a dependency array. Why, and how do I fix it?",
+      "fp32": 0.31
+    },
+    {
+      "text": "Implement a thread-safe LRU cache in Rust with O(1) get and put, and explain the ownership choices.",
+      "fp32": 0.55
+    },
+    {
+      "text": "Design a multi-region active-active database architecture for a payments platform that must guarantee exactly-once transaction processing, and analyse the failure modes under network partitions.",
+      "fp32": 0.833
+    },
+    {
+      "text": "Derive the closed-form solution of ordinary least squares regression and discuss when the normal equations are ill-conditioned.",
+      "fp32": 0.677
+    },
+    {
+      "text": "Explique-moi comment fonctionne la photosynthèse, simplement, pour un enfant de dix ans.",
+      "fp32": 0.322
+    },
+    {
+      "text": "Rédige une lettre de motivation pour un poste de développeur backend dans une startup lyonnaise.",
+      "fp32": 0.316
+    },
+    {
+      "text": "Erkläre den Unterschied zwischen TCP und UDP und wann man welches Protokoll verwendet.",
+      "fp32": 0.392
+    },
+    {
+      "text": "请用简单的话解释什么是区块链。",
+      "fp32": 0.273
+    },
+    {
+      "text": "東京から大阪まで新幹線で何時間かかりますか？",
+      "fp32": 0.209
+    },
+    {
+      "text": "Объясни, почему небо голубое.",
+      "fp32": 0.267
+    },
+    {
+      "text": "Compute the integral of x^2 * e^x dx and check the result by differentiating it.",
+      "fp32": 0.353
+    },
+    {
+      "text": "Given a graph with weighted edges, write an algorithm that finds a minimum spanning tree, analyse its complexity, and compare Kruskal and Prim on dense graphs.",
+      "fp32": 0.611
+    },
+    {
+      "text": "Formalise in Lean 4 the statement that every finite integral domain is a field, and sketch the proof.",
+      "fp32": 0.607
+    },
+    {
+      "text": "Write a short product description for a stainless steel water bottle.",
+      "fp32": 0.222
+    },
+    {
+      "text": "Plan a three-day itinerary for Rome on a student budget.",
+      "fp32": 0.316
+    },
+    {
+      "text": "Analyse the trade-offs of event sourcing with CQRS in a microservices system, including schema evolution of events, snapshotting and eventual consistency of the read models.",
+      "fp32": 0.79
+    },
+    {
+      "text": "Scrivi una breve poesia sul mare d'inverno.",
+      "fp32": 0.245
+    },
+    {
+      "text": "Qual é a diferença entre juros simples e compostos? Mostre um exemplo com 1000 reais a 5% ao ano durante 3 anos.",
+      "fp32": 0.29
+    },
+    {
+      "text": "Give me a bash one-liner that lists the ten largest files under the current directory.",
+      "fp32": 0.247
+    },
+    {
+      "text": "Using the calendar tool, list my meetings for next Monday and flag any that overlap.",
+      "fp32": 0.318
+    },
+    {
+      "text": "Prove or disprove: for every prime p > 3, p^2 - 1 is divisible by 24.",
+      "fp32": 0.321
+    }
+  ]
+}

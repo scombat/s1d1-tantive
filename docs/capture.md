@@ -45,7 +45,7 @@ Docker:
 ```bash
 mkdir capture && sudo chown 10001 capture
 docker run -p 8788:8788 -v "$PWD/capture:/capture" -e S1D1_CAPTURE_DIR=/capture -e S1D1_CAPTURE_SAMPLE=0.1 \
-  ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8
+  ghcr.io/scombat/s1d1-tantive:0.8.1-small-onnx-int8
 ```
 
 Azure Container Apps, with an Azure Files share (the template creates the environment storage in its resource group,

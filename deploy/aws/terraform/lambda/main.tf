@@ -1,5 +1,5 @@
 # s1d1-tantive as an AWS Lambda container function with provisioned concurrency. The image is the one built from
-# deploy/aws/Dockerfile.lambda (FROM ghcr.io/scombat/s1d1-tantive:0.8.0-full-onnx-int8 plus the Lambda Web Adapter),
+# deploy/aws/Dockerfile.lambda (FROM ghcr.io/scombat/s1d1-tantive:0.8.1-full-onnx-int8 plus the Lambda Web Adapter),
 # pushed to ECR in this region. Adapt: image_uri, architecture, memory_size (full: 4096; small: 2048).
 terraform {
   required_version = ">= 1.5"

@@ -10,7 +10,7 @@
 - Replicas: 3 at least; `1000 / cost_ms` requests per second each, with `cost_ms = fixed_ms + per_token_ms × tokens`.
 - Deadline: `S1D1_DEADLINE_MS` below the LiteLLM classifier timeout (1000 ms), above the cost of a 1 024-token prompt.
 - Long prompts: keep `head_tail`; `chunks` costs about 2.3 passes per long prompt for no measured gain.
-- Tiers: `S1D1_TIERS` must carry the tier names of the router.
+- Tiers: LiteLLM's four (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) are always recognised; other routers' names go in `S1D1_TIERS`. LiteLLM fallback: `classifier_fallback: default_model`.
 - Check: LiteLLM's `test_routing`, then the `ready` line of the logs (`predicted_ms_1024`, `capacity_warning`).
 - The calculation and two worked examples: [sizing](docs/sizing.md). Six full configurations: [use cases](docs/use-cases.md).
 
