@@ -5,7 +5,7 @@
 ## How to choose
 
 - Variant: `small` by default, `full` for the largest model, `tiny` for 512 MiB hosts.
-- Formats: `decisions` for LiteLLM 1.106+, `chat` for older LiteLLM, `classify` or `predict` for other clients (`S1D1_FORMATS`).
+- Formats: `systemone` for LiteLLM 1.106+ (Auto Router, `oss_classifier`, provider `laya`), `chat` for older LiteLLM, `decisions` for OpenAI Decisions clients, `classify` or `predict` for other clients (`S1D1_FORMATS`).
 - Target: Azure, AWS, Cloud Run, Heroku, Render or a Hugging Face Space under `deploy/`; Docker anywhere else.
 - Replicas: 3 at least; `1000 / cost_ms` requests per second each, with `cost_ms = fixed_ms + per_token_ms × tokens`.
 - Deadline: `S1D1_DEADLINE_MS` below the LiteLLM classifier timeout (1000 ms), above the cost of a 1 024-token prompt.
