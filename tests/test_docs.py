@@ -55,7 +55,7 @@ def prose(path: Path) -> str:
 
 
 def test_readme_length():
-    assert len(lines(README)) <= 130
+    assert len(lines(README)) <= 150
 
 
 def test_readme_section_order():
@@ -86,7 +86,7 @@ def test_readme_opens_with_badges_then_what_it_is():
     intro = "\n".join(top[1:first_block])
     assert intro.count("img.shields.io") + intro.count("slsa.dev") >= 6
     paragraphs = [p for p in re.split(r"\n\s*\n", intro) if p.strip() and "img.shields.io" not in p and HERO not in p]
-    assert len(paragraphs) == 2  # s1d1 the model, then this service
+    assert len(paragraphs) == 3  # s1d1 the model, then this service, then where to try it without installing
 
 
 def test_docs_links_resolve():

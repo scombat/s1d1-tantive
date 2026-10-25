@@ -139,4 +139,4 @@ can tail `capture-*.jsonl` and forward each line to any sink they support.
 
 ## Back to labelling
 
-The files feed the import tool of the research repository, `pipeline/12_import_capture.py`.
+The files are plain JSON Lines, so any labelling or analysis tool can read them; the maintainers' own import tool lives in a private repository and is not part of this one.

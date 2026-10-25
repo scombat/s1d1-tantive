@@ -4,9 +4,9 @@ This page shows how to deploy s1d1-tantive on Hugging Face as a Docker Space nam
 card (`README.md`) and the `Dockerfile` in this folder are the whole Space: a single `FROM` the published `full`
 image, which is public, so the Space builds without credentials.
 
-**The README button opens this page** until the Space exists. Once it is published, replace the link of the
-Hugging Face button in the root README (`deploy/huggingface/PUBLISH.md`) with
-`https://huggingface.co/spaces/scombat/s1d1-tantive?duplicate=true`.
+**Not published yet.** The Space `scombat/s1d1-tantive` does not exist, so the root README has no Hugging Face button
+(the link below answers 401). Once it is published, add the button back to the "Deploy" row of the README, replacing
+the link with `https://huggingface.co/spaces/scombat/s1d1-tantive?duplicate=true`.
 
 **Prerequisite (checked 2026-10-21 on the Hub docs, "Spaces Overview" and "Docker Spaces"):** creating or
 duplicating a Docker Space needs a paid plan on the target account or organisation (PRO for a personal account,
