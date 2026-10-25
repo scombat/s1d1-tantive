@@ -49,7 +49,7 @@ A button that opens a guide instead of the provider has one step left for you, d
 
 ```bash
 docker run --rm -p 8788:8788 -e S1D1_FORMATS=systemone,decisions,chat,classify,predict \
-  ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8
+  ghcr.io/scombat/s1d1-tantive:0.8.1-small-onnx-int8
 ```
 
 ```bash
@@ -92,7 +92,7 @@ cosign verify ghcr.io/scombat/s1d1-tantive:<version>-small-onnx-int8 \
 ```
 
 ```bash
-docker run --rm --entrypoint python ghcr.io/scombat/s1d1-tantive:0.8.0-small-onnx-int8 -m tantive.verify /model /model/checksums.json
+docker run --rm --entrypoint python ghcr.io/scombat/s1d1-tantive:0.8.1-small-onnx-int8 -m tantive.verify /model /model/checksums.json
 ```
 
 The first checks the keyless signature (0.6.0 and later; `cosign.pub` verifies 0.5.0 and older), the second the weights; SLSA provenance too: [docs/verify.md](docs/verify.md).
@@ -100,7 +100,8 @@ The first checks the keyless signature (0.6.0 and later; `cosign.pub` verifies 0
 ## LiteLLM
 
 1. *Add Model*: mode *Decisions*, provider `laya`, model `multilingual`, `api_base` = this service's URL.
-2. *Auto Router*: classifier `oss_classifier` pointing at that model, your tiers, a `fallback_tier`.
+2. *Auto Router*: classifier `oss_classifier` pointing at that model, a model for each of LiteLLM's tiers (`SIMPLE`,
+   `MEDIUM`, `COMPLEX`, `REASONING`), `classifier_fallback: default_model`.
 3. *Test Routing* on a few prompts. The GUI and `curl` routes, side by side: [docs/litellm.md](docs/litellm.md).
 
 ## Licence

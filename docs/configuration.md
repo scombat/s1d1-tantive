@@ -64,8 +64,8 @@ scheduler needs to predict waits.
 Inference runs on one worker thread, so a request waits behind the passes already accepted. Before admitting a
 request the service predicts its wait; when that exceeds `S1D1_DEADLINE_MS`, or `S1D1_MAX_QUEUE` requests already
 wait, it answers 503 with `Retry-After: 1` at once. For LiteLLM this is good news: a fast 503 sends the request to
-the `fallback_tier` straight away, whereas a timeout counts towards the provider's circuit breaker, which then stops
-calling the classifier for 30 seconds.
+the `classifier_fallback` (the router's default model) straight away, whereas a timeout counts towards the provider's
+circuit breaker, which then stops calling the classifier for 30 seconds.
 
 ## Size from the `ready` line
 

@@ -4,14 +4,14 @@ This page shows how to make LiteLLM's Auto Router choose a model with s1d1-tanti
 the API. Both routes make the same two registrations: the classifier as a model, then the router that uses it.
 
 You need a running service reachable from LiteLLM ([getting-started.md](getting-started.md)) and LiteLLM 1.106 or
-later (field names below are those of 1.107; `tier_definitions` and custom instructions are Enterprise features).
+later.
 
 ## Which tier names
 
-The router's tiers must be the names in the service's `S1D1_TIERS`: the native five by default
-(`TRIVIAL`, `LOW`, `MEDIUM`, `HIGH`, `EXPERT`), or LiteLLM's four (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`), which
-the service always recognises. Any other name makes every request fall back to `fallback_tier`: if routing seems
-stuck on one model, check the names first.
+LiteLLM's complexity router has four tiers, `SIMPLE`, `MEDIUM`, `COMPLEX` and `REASONING`, which the service always
+recognises, whatever its `S1D1_TIERS` (the native five by default: `TRIVIAL`, `LOW`, `MEDIUM`, `HIGH`, `EXPERT`).
+When the classifier fails or answers a name the router does not know, the request goes to the `classifier_fallback`;
+with `default_model`, that is the router's default model. If routing seems stuck on one model, check the names first.
 
 ## 1. Register the classifier
 
@@ -40,7 +40,8 @@ If the service has `S1D1_API_KEY` set, add `"api_key": "<service key>"` to `lite
 
 **GUI.** *Models* → *Add Model* → *Auto Router*, type *Complexity router*. Classifier: *OSS classifier*, pointing at
 `laya` / `multilingual` and the service URL, timeout 1000 ms. Tiers: one line per tier, with a short description and
-the model to use. Fallback tier: `MEDIUM`. Classification mode: `user_turn`. Default model: your medium model.
+the model to use for `SIMPLE`, `MEDIUM`, `COMPLEX` and `REASONING`. Classifier fallback: *Default model*.
+Classification mode: `user_turn`. Default model: your medium model.
 
 **API.** Validate the configuration first, then register it with the same body:
 
@@ -49,14 +50,8 @@ export ROUTER='{
   "classifier_type": "oss_classifier",
   "opensource_classifier_config": {"provider": "laya", "model": "multilingual", "api_base": "'"$S1D1_API_BASE"'", "timeout_ms": 1000},
   "classification_mode": "user_turn",
-  "fallback_tier": "MEDIUM",
-  "tier_definitions": [
-    {"name": "TRIVIAL", "description": "greetings, one-line facts"},
-    {"name": "LOW", "description": "short, well-specified tasks"},
-    {"name": "MEDIUM", "description": "ordinary coding, writing and analysis"},
-    {"name": "HIGH", "description": "debugging, design, multi-step work"},
-    {"name": "EXPERT", "description": "hard reasoning, long technical analyses"}],
-  "tiers": {"TRIVIAL": "cheapest-model", "LOW": "cheap-model", "MEDIUM": "medium-model", "HIGH": "strong-model", "EXPERT": "strongest-model"}}'
+  "classifier_fallback": "default_model",
+  "tiers": {"SIMPLE": "cheap-model", "MEDIUM": "medium-model", "COMPLEX": "strong-model", "REASONING": "strongest-model"}}'
 ```
 
 ```bash
@@ -86,7 +81,7 @@ Try a greeting, an ordinary task and a hard one: they should land on three diffe
 
 Call the router like any model (`"model": "s1d1-auto"`). On the service, `/metrics` has `tantive_decisions_total` by
 tier, and each request leaves a `decision` log line. A 503 from the service is good news for LiteLLM: the request
-falls back to `fallback_tier` at once, instead of timing out ([configuration.md](configuration.md#shedding-by-deadline)).
+goes to the `classifier_fallback` (the default model) at once, instead of timing out ([configuration.md](configuration.md#shedding-by-deadline)).
 
 ## Notes
 

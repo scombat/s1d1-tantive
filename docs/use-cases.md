@@ -1,7 +1,7 @@
 # Pick a configuration for your case
 
 This page shows how to configure the service for six common cases: copy the block of the closest one and adjust.
-Sizes come from [sizing.md](sizing.md). Images are `ghcr.io/scombat/s1d1-tantive:0.6.0-<variant>-onnx-int8`.
+Sizes come from [sizing.md](sizing.md). Images are `ghcr.io/scombat/s1d1-tantive:0.8.1-<variant>-onnx-int8`.
 
 ## 1. LiteLLM Enterprise pilot on Azure Container Apps
 

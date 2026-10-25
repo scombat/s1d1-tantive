@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.8.1 — 2026-10-25
+
+Upgrade recommended for amd64 deployments.
+
+- The int8 weights of the four variants are re-quantized with `reduce_range` (7-bit weights; research repo, docs/28),
+  which fixes wrong scores on x86 CPUs without VNNI (e.g. Haswell, AVX2 only): ONNX Runtime's U8S8 kernel there adds
+  pairs of products into a saturated int16. `small` was the variant affected: "hi" scored 1.0 instead of 0.04, and
+  its tiers agreed with fp32 on 49 % of prompts instead of 90 %. `checksums/` pins the new Hub revisions; only
+  `model_int8.onnx` changes in each.
+- New int8 guard in the `image` workflow (`tools/int8_guard.py`): the small image runs under `qemu-x86_64 -cpu Haswell`
+  (no VNNI, whatever the runner has) on 44 probe prompts (`tests/fixtures/int8_probe.json`) and fails below 85 % tier
+  agreement with the fp32 scores, when a greeting scores above the `TRIVIAL` bound, or when a score is pinned at 1.0.
+- The LiteLLM guide, the README and `llms.txt` describe LiteLLM 1.106's router: the four tiers `SIMPLE`, `MEDIUM`,
+  `COMPLEX`, `REASONING` and `classifier_fallback: default_model`, without `fallback_tier`.
+- Image references move to 0.8.1 in the README, the guides, the deployment templates and the Space files.
+
 ## 0.8.0 — 2026-10-24
 
 - Opt-in sending of the captured lines to a community ingestion: `S1D1_CAPTURE_SEND=1` (off by default, needs

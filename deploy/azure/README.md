@@ -16,7 +16,7 @@ environment, registry, network or log workspace.
 
 ## Facts
 
-- Image: `ghcr.io/scombat/s1d1-tantive:0.8.0-full-onnx-int8`
+- Image: `ghcr.io/scombat/s1d1-tantive:0.8.1-full-onnx-int8`
 - RAM: 4096 MiB (default `memory` 4Gi with 2.0 vCPU)
 - Status: needs public repository
 - Still to do (you): make the repository public so the portal can read the template. The template still asks for
@@ -31,7 +31,7 @@ environment, registry, network or log workspace.
 | `name` | string | `s1d1-tantive` | container app name |
 | `location` | string | resource group's | must be the environment's region |
 | `environmentId` | string | **none** | resource id of the existing Container Apps environment |
-| `image` | string | `ghcr.io/scombat/s1d1-tantive:0.8.0-full-onnx-int8` | image to run (one per model variant) |
+| `image` | string | `ghcr.io/scombat/s1d1-tantive:0.8.1-full-onnx-int8` | image to run (one per model variant) |
 | `registryServer` | string | `ghcr.io` | registry host |
 | `registryUsername` | string | **none** | registry user (a GitHub user for GHCR) |
 | `registryPassword` | securestring | **none** | registry password (a token with `read:packages`) |

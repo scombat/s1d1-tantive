@@ -10,7 +10,7 @@ body:
     attributes:
       label: Version or image tag
       description: "`GET /info` gives the version; or the tag you pulled."
-      placeholder: 0.8.0-small-onnx-int8
+      placeholder: 0.8.1-small-onnx-int8
     validations:
       required: true
   - type: dropdown

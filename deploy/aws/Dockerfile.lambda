@@ -1,7 +1,7 @@
 # Lambda cannot pull from ghcr.io: build this image, push it to an ECR repository in the function's region, and
 # give that URI to template.lambda.yaml (ImageUri). One build per architecture; use the small image for small sizes:
-#   docker buildx build --platform linux/amd64 -f deploy/aws/Dockerfile.lambda -t <account>.dkr.ecr.<region>.amazonaws.com/s1d1-tantive:0.8.0 --push .
-ARG BASE=ghcr.io/scombat/s1d1-tantive:0.8.0-full-onnx-int8
+#   docker buildx build --platform linux/amd64 -f deploy/aws/Dockerfile.lambda -t <account>.dkr.ecr.<region>.amazonaws.com/s1d1-tantive:0.8.1 --push .
+ARG BASE=ghcr.io/scombat/s1d1-tantive:0.8.1-full-onnx-int8
 FROM ${BASE}
 
 # The Lambda Web Adapter is a Lambda extension: it runs beside our server, polls /ready, then relays each invocation

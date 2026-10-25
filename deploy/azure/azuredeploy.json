@@ -27,7 +27,7 @@
     },
     "image": {
       "type": "string",
-      "defaultValue": "ghcr.io/scombat/s1d1-tantive:0.8.0-full-onnx-int8",
+      "defaultValue": "ghcr.io/scombat/s1d1-tantive:0.8.1-full-onnx-int8",
       "metadata": {
         "description": "Image to run. One image per model variant: the tag ends with the variant (full-onnx-int8, small-onnx-int8, ...)."
       }

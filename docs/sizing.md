@@ -47,7 +47,7 @@ sends many calls for one question costs one classification: count user turns, no
 `S1D1_DEADLINE_MS` (default 800) is how long a request may wait for its turn before the service answers 503.
 
 - Keep it **below the classifier timeout in LiteLLM** (1000 ms recommended to start), minus the network round-trip:
-  a fast 503 sends the request to `fallback_tier`, a timeout counts against LiteLLM's circuit breaker.
+  a fast 503 sends the request to the `classifier_fallback`, a timeout counts against LiteLLM's circuit breaker.
 - Keep it **above `predicted_ms_1024`** (the cost of a full-window prompt, in the `ready` line), or a
   `capacity_warning` says those prompts will always be shed.
 - Cloud estimate of `predicted_ms_1024`: `(fixed_ms + per_token_ms × 1024) × 3`: `small` 327 ms, `full` 624 ms.
