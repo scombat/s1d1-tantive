@@ -1,7 +1,8 @@
 name: image
 
 # Builds the small image from the Hub weights and runs it, on the pull requests that change what the image is made of
-# (Dockerfile, lockfile, pinned weights). amd64 only: nothing is pushed, signed or attested here; build.yml does that on a tag.
+# (Dockerfile, lockfile, pinned weights), then runs the int8 guard on it. amd64 only: nothing is pushed, signed or
+# attested here; build.yml does that on a tag.
 on:
   pull_request:
     branches: [main]
@@ -11,6 +12,9 @@ on:
       - pyproject.toml
       - checksums/**
       - src/tantive/verify.py
+      - src/tantive/model.py
+      - tools/int8_guard.py
+      - tests/fixtures/int8_probe.json
       - .github/workflows/image.yml
   workflow_dispatch:
 
@@ -32,3 +36,17 @@ jobs:
           python-version: "3.12"
       - run: uv sync --all-groups --locked
       - run: uv run pytest -m docker -q
+      # The int8 guard (tools/int8_guard.py) on the image the tests built (tantive:test-small, tests/test_image.py):
+      # U8S8 int8 saturated on x86 without VNNI (the small scored "hi" 1.0 before 0.8.1), and the runners often
+      # have VNNI, which never takes that path; so the image's python runs under qemu-x86_64 emulating a Haswell
+      # (AVX2, FMA, no AVX-512, no VNNI, no AMX). The static qemu is mounted into the image; the guard prints the host
+      # flags and the CPUID it sees, and refuses to pass on a CPU with VNNI. TCG warns that it lacks hle and rtm.
+      - name: Install qemu-user-static
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends qemu-user-static
+      - name: Int8 guard, the small image on an emulated Haswell (no VNNI)
+        run: |
+          qemu="$(readlink -f "$(command -v qemu-x86_64-static)")"
+          "$qemu" --version | head -n 1
+          docker run --rm -v "$PWD":/repo:ro -v "$qemu":/usr/local/bin/qemu-x86_64:ro \
+            --entrypoint /usr/local/bin/qemu-x86_64 tantive:test-small \
+            -cpu Haswell /app/.venv/bin/python -I /repo/tools/int8_guard.py check /model

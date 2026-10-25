@@ -308,6 +308,9 @@ def test_image_workflow_checks_the_image_on_pull_requests_that_touch_it():
         "pyproject.toml",
         "checksums/**",
         "src/tantive/verify.py",
+        "src/tantive/model.py",
+        "tools/int8_guard.py",
+        "tests/fixtures/int8_probe.json",
         ".github/workflows/image.yml",
     ]
     assert "workflow_dispatch" in on
