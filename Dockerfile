@@ -7,8 +7,9 @@
 ARG VARIANT=full-onnx-int8
 ARG WEIGHTS_SRC=hub
 
-# The two pinned images, each in one place: python:3.12-slim (bookworm) and ghcr.io/astral-sh/uv:0.11.26, digests
-# resolved 2026-10-20 with `docker buildx imagetools inspect <image>`; later stages refer to these aliases.
+# The two pinned images, each in one place: python:3.12-slim (Debian trixie) and ghcr.io/astral-sh/uv, both pinned by
+# digest. Dependabot bumps tag and digest together each week; by hand, `docker buildx imagetools inspect <image>`
+# gives the digest of a tag. Later stages refer to these aliases.
 FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS python
 FROM ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff AS uv
 
