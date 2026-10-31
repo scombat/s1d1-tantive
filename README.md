@@ -61,8 +61,12 @@ Agreement with the median of three local LLM judges (Gemma 4 31B, Qwen3.8 27B, g
 languages, against median latency per prompt (batch 1, Apple M4 Max; s1d1 int8 on CPU). `full` int8 reaches
 0.807 [0.734 ; 0.852] at 9 ms per prompt, inside the judges' own agreement band (0.70 to 0.83) at 2 to 43 s per
 prompt; Laya 0.405 / 0.119, LiteLLM's built-in heuristic 0.089. The bench, its judge files and its report are public
-and replayable: [s1d1-bench](https://github.com/scombat/s1d1-bench) (the full ranking, with witnesses, is
-[`assets/bench-qwk-bars.svg`](assets/bench-qwk-bars.svg)).
+and replayable: [s1d1-bench](https://github.com/scombat/s1d1-bench).
+
+<p align="center"><img src="assets/bench-qwk-bars.svg" alt="Horizontal bars of QWK against truth_all per candidate with 95 % bootstrap whiskers: s1d1 full fp16 0.814, full int8 0.807, small 0.772, compact 0.759, tiny 0.614; Laya 0.405 and 0.119; LiteLLM 0.089; length witness 0.543; the judges' ceiling lines around 0.77" width="100%"></p>
+
+The same agreement for every candidate and witness, with the judges' ceiling (mean and per judge) and the floors
+(prompt length, constant tier, random).
 
 ## Quickstart
 
