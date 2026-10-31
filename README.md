@@ -49,6 +49,8 @@ Space target is prepared in [`deploy/huggingface/`](deploy/huggingface/PUBLISH.m
 - [Use cases](docs/use-cases.md): six ready-made configurations
 - [Capture](docs/capture.md): keep the classified prompts to label them again
 - [Verify the image](docs/verify.md): signature, provenance, weights
+- [s1d1-bench](https://github.com/scombat/s1d1-bench): the open, replayable bench of s1d1 against local LLM judges, with
+  confidence intervals, witnesses, Laya and LiteLLM's heuristic (French, English summary on top)
 - Deploy guides: [`deploy/`](deploy/); release notes: [MAINTAINERS.md](MAINTAINERS.md); contributing: [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md); [CHANGELOG.md](CHANGELOG.md)
 
 ## Quickstart
