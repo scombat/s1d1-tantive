@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- docs: the LiteLLM recipe uses the generic route (a `hosted_vllm` deployment named by `deployment_name`, tested with
+  1.106.6); `provider: laya` stays as a fallback.
 - README: a line near the top pointing to the free hosted API and the in-browser demo, one tier vocabulary
   (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) in the Quickstart, the tests and the LiteLLM section, and the LiteLLM
   1.106 `config.yaml` block. The "Deploy on Hugging Face" button is removed until the Space exists; `deploy/huggingface/`
