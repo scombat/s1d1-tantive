@@ -105,3 +105,31 @@ S1D1_DEADLINE_MS=800
 Why: the `chat` adapter answers like an OpenAI-compatible model, so the router can use `classifier_type: llm` with
 the service as the classifier; the tier names must be the ones in your router. Next:
 [formats.md](formats.md#chat-completions).
+
+## 7. What routing can save (an illustration, not a measurement)
+
+An extrapolation with assumed numbers, not a measurement. Example policy (the operator picks the models; a class is a
+kind of model): `trivial` and `low` go to a cheap model, `medium` to a mid one, `high` to a strong one, `expert` to a
+strong one with extended reasoning.
+
+Hypothetical traffic: the only measured figure is that 69 % of prompts are `trivial` or `low`, in the naturally
+sampled part of the training data (27,871 prompts; see "Estimated upside" in the
+[model card](https://huggingface.co/scombat/s1d1-router)). The rest is assumed: 15 % `medium`, 10 % `high`, 6 % `expert`.
+Indicative prices per million tokens, assumed and dated 2026-10-31 (prices change): a cheap model at 1 $/M, a mid
+model at 5 $/M, a strong model at 15 $/M, the same tokens per request.
+
+| Class | Share | Price (strong = 100) | Contribution |
+|---|---|---|---|
+| cheap | 69 % | 6.7 | 4.6 |
+| mid | 15 % | 33.3 | 5.0 |
+| strong | 10 % | 100 | 10.0 |
+| strong, extended reasoning | 6 % | 100 | 6.0 |
+
+All on the strong model is 100; the routed budget is about 26, a saving of about 74 % under these assumptions.
+
+What this ignores: the cheap model's answer quality (not measured); the classifier's own cost, small but not zero
+(`small`: 5.8 ms per prompt and 56 MB, M4 Max, batch 1, CPU, from the s1d1-bench profile); output tokens, which often
+dominate the bill; the extra tokens of extended reasoning (priced here like the strong model); and real traffic, which
+can differ a lot. A tier error toward a lower tier costs answer quality, not money. For the fidelity of the tiers see
+[s1d1-bench](https://github.com/scombat/s1d1-bench). Its `base-v1` split is not used as a traffic mix: it is built
+by strata of 20 prompts each, so it says nothing about how often each tier occurs.
