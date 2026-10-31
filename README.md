@@ -106,35 +106,33 @@ The first checks the keyless signature (0.6.0 and later; `cosign.pub` verifies 0
 
 ## LiteLLM
 
-LiteLLM 1.106 or later (tested with 1.106.4), in `config.yaml`:
+LiteLLM 1.106 or later (tested with 1.106.6), in `config.yaml`:
 
 ```yaml
 model_list:
   # ... your four models: cheap, medium, strong, reasoning
+  - model_name: s1d1-classifier
+    litellm_params:
+      model: hosted_vllm/s1d1-small
+      api_base: http://localhost:8788   # this service's root; LiteLLM appends /v1/systemone
+    model_info: {mode: decisions}
   - model_name: s1d1-auto
     litellm_params:
       model: auto_router/complexity_router
       complexity_router_default_model: medium
       complexity_router_config:
         classifier_type: oss_classifier
-        opensource_classifier_config:
-          provider: laya
-          model: multilingual
-          api_base: http://localhost:8788   # this service's root; LiteLLM appends /v1/systemone
-          timeout_ms: 1000
+        opensource_classifier_config: {deployment_name: s1d1-classifier, timeout_ms: 1000}
         classifier_fallback: default_model
-        tiers:
-          SIMPLE: cheap
-          MEDIUM: medium
-          COMPLEX: strong
-          REASONING: reasoning
+        tiers: {SIMPLE: cheap, MEDIUM: medium, COMPLEX: strong, REASONING: reasoning}
 ```
 
 Replace the model names and `api_base` with yours (the free hosted API is `https://s1d1.qoo.gy/api`; read its terms
 first). Then call `"model": "s1d1-auto"`. If the service is slow or unreachable, LiteLLM uses the default model. The
-admin-GUI route (*Add Model* with mode *Decisions*, then *Auto Router*, then *Test Routing*) and the `curl` route are
-side by side in [docs/litellm.md](docs/litellm.md). `fallback_tier` and `tier_definitions` belong to LiteLLM Enterprise
-custom tiers and are not part of this path.
+response header `x-litellm-complexity-router-cause` reads `jev_classifier` for any classifier: check
+`tantive_decisions_total` on `/metrics` instead. The admin-GUI and `curl` routes, the `provider: laya` fallback and the
+failure behaviour are in [docs/litellm.md](docs/litellm.md). `fallback_tier` and `tier_definitions` belong to LiteLLM
+Enterprise custom tiers and are not part of this path.
 
 ## Licence
 
