@@ -49,24 +49,9 @@ Space target is prepared in [`deploy/huggingface/`](deploy/huggingface/PUBLISH.m
 - [Use cases](docs/use-cases.md): six ready-made configurations
 - [Capture](docs/capture.md): keep the classified prompts to label them again
 - [Verify the image](docs/verify.md): signature, provenance, weights
-- [s1d1-bench](https://github.com/scombat/s1d1-bench): the open, replayable bench of s1d1 against local LLM judges, with
-  confidence intervals, witnesses, Laya and LiteLLM's heuristic (French, English summary on top)
 - Deploy guides: [`deploy/`](deploy/); release notes: [MAINTAINERS.md](MAINTAINERS.md); contributing: [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md); [CHANGELOG.md](CHANGELOG.md)
 
-## How well it routes
-
-<p align="center"><img src="assets/bench-quality-vs-latency.svg" alt="QWK against the judges' median plotted against median latency per prompt on a log axis: the s1d1 variants sit at 2 to 9 ms and 0.61 to 0.81, the three judges at 2 to 43 s and 0.70 to 0.83, Laya at 13 to 25 ms and 0.12 to 0.41, LiteLLM's heuristic at 0.1 ms and 0.09" width="100%"></p>
-
-Agreement with the median of three local LLM judges (Gemma 4 31B, Qwen3.8 27B, gpt-oss-20b) on 360 prompts in four
-languages, against median latency per prompt (batch 1, Apple M4 Max; s1d1 int8 on CPU). `full` int8 reaches
-0.807 [0.734 ; 0.852] at 9 ms per prompt, inside the judges' own agreement band (0.70 to 0.83) at 2 to 43 s per
-prompt; Laya 0.405 / 0.119, LiteLLM's built-in heuristic 0.089. The bench, its judge files and its report are public
-and replayable: [s1d1-bench](https://github.com/scombat/s1d1-bench).
-
-<p align="center"><img src="assets/bench-qwk-bars.svg" alt="Horizontal bars of QWK against truth_all per candidate with 95 % bootstrap whiskers: s1d1 full fp16 0.814, full int8 0.807, small 0.772, compact 0.759, tiny 0.614; Laya 0.405 and 0.119; LiteLLM 0.089; length witness 0.543; the judges' ceiling lines around 0.77" width="100%"></p>
-
-The same agreement for every candidate and witness, with the judges' ceiling (mean and per judge) and the floors
-(prompt length, constant tier, random).
+<p align="center"><img src="assets/bench-quality-vs-latency.svg" alt="QWK against the median of three local LLM judges plotted against median latency per prompt on a log axis: the s1d1 variants at 2 to 9 ms and 0.61 to 0.81, the judges at 2 to 43 s and 0.70 to 0.83, Laya at 13 to 25 ms and 0.12 to 0.41, LiteLLM's heuristic at 0.1 ms and 0.09" width="100%"><br><img src="assets/bench-qwk-bars.svg" alt="QWK of every candidate and witness with 95 % bootstrap whiskers: s1d1 full int8 0.807, small 0.772, compact 0.759, tiny 0.614; Laya 0.405 and 0.119; LiteLLM 0.089; prompt-length witness 0.543; the judges' ceiling around 0.77" width="100%"><br><sub>Agreement with the median of three local LLM judges (360 prompts, four languages) against latency per prompt, then the full ranking with witnesses. From <a href="https://github.com/scombat/s1d1-bench">s1d1-bench</a>, the open, replayable bench of s1d1 (confidence intervals, witnesses, Laya, LiteLLM's heuristic; French, English summary on top).</sub></p>
 
 ## Quickstart
 
