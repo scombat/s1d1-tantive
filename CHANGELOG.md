@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- docs: `docs/use-cases.md` section 7, a savings illustration for tier routing with assumed traffic and prices,
+  labelled as an extrapolation, not a measurement.
 - docs: the LiteLLM recipe uses the generic route (a `hosted_vllm` deployment named by `deployment_name`, tested with
   1.106.6); `provider: laya` stays as a fallback.
 - README: a line near the top pointing to the free hosted API and the in-browser demo, one tier vocabulary
