@@ -20,7 +20,7 @@ of width sigma centred on the score, cut by the tier intervals; the confidence i
 
 ## System One
 
-For: LiteLLM's Auto Router (`oss_classifier`, provider `laya`) and any System One client. `POST /v1/systemone`.
+For: LiteLLM's Auto Router (`oss_classifier`, a `hosted_vllm` deployment) and any System One client. `POST /v1/systemone`.
 
 ```bash
 curl -s localhost:8788/v1/systemone -H 'content-type: application/json' -d '{
