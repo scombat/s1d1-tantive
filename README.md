@@ -53,6 +53,17 @@ Space target is prepared in [`deploy/huggingface/`](deploy/huggingface/PUBLISH.m
   confidence intervals, witnesses, Laya and LiteLLM's heuristic (French, English summary on top)
 - Deploy guides: [`deploy/`](deploy/); release notes: [MAINTAINERS.md](MAINTAINERS.md); contributing: [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md); [CHANGELOG.md](CHANGELOG.md)
 
+## How well it routes
+
+<p align="center"><img src="assets/bench-quality-vs-latency.svg" alt="QWK against the judges' median plotted against median latency per prompt on a log axis: the s1d1 variants sit at 2 to 9 ms and 0.61 to 0.81, the three judges at 2 to 43 s and 0.70 to 0.83, Laya at 13 to 25 ms and 0.12 to 0.41, LiteLLM's heuristic at 0.1 ms and 0.09" width="100%"></p>
+
+Agreement with the median of three local LLM judges (Gemma 4 31B, Qwen3.8 27B, gpt-oss-20b) on 360 prompts in four
+languages, against median latency per prompt (batch 1, Apple M4 Max; s1d1 int8 on CPU). `full` int8 reaches
+0.807 [0.734 ; 0.852] at 9 ms per prompt, inside the judges' own agreement band (0.70 to 0.83) at 2 to 43 s per
+prompt; Laya 0.405 / 0.119, LiteLLM's built-in heuristic 0.089. The bench, its judge files and its report are public
+and replayable: [s1d1-bench](https://github.com/scombat/s1d1-bench) (the full ranking, with witnesses, is
+[`assets/bench-qwk-bars.svg`](assets/bench-qwk-bars.svg)).
+
 ## Quickstart
 
 ```bash
