@@ -732,6 +732,15 @@ def test_an_empty_limit_is_the_window_as_before():
     assert resolve_limit(None, policy("chunks"), CostModel(1.0, 0.01), 10_000).effective == 8192
 
 
+def test_an_empty_limit_under_chunks_warns_as_before():
+    """Empty keeps 0.8.1's warning, about one full window (docs/40 § 4 and § 8), though every piece is predicted."""
+    from tantive.engine import resolve_limit
+
+    limit = resolve_limit(None, policy("chunks"), CostModel(10.0, 0.5), deadline_ms=800)  # a window 522 ms, 8: 4 176
+    assert limit.predicted_ms == pytest.approx(8 * 10.0 + 0.5 * 8192) and limit.warning is False
+    assert resolve_limit(None, policy("chunks"), CostModel(10.0, 1.0), 800).warning is True  # a window: 1 034 ms
+
+
 async def test_the_engine_computes_auto_once_and_applies_it(monkeypatch):
     import tantive.engine as engine_module
 

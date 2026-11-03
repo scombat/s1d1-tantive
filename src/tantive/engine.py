@@ -45,23 +45,25 @@ class InputLimit:
     source: str  # "window" (empty), "user" (an integer) or "auto"
     predicted_ms: float  # the cost model's prediction for a text that fills the limit
     capped: bool = False  # an integer above what the policy can pass
-    warning: bool = False  # the prediction exceeds the deadline (half of it under auto, even at the floor)
+    warning: bool = False  # beyond the deadline: the prediction (half of it under auto), a full window when empty
 
 
 def resolve_limit(
     setting: int | str | None, policy: LongPromptPolicy, cost: CostModel, deadline_ms: int
 ) -> InputLimit:
-    """Empty: what the policy can pass, as before. An integer: that, capped to what the policy can pass. `auto`: the
-    largest multiple of AUTO_STEP from MIN_TOKENS to that cap whose predicted cost fits in AUTO_SHARE of the deadline,
-    else MIN_TOKENS with a warning (the service starts anyway: shedding sometimes beats a crash loop)."""
+    """Empty: what the policy can pass, as before, with the warning as before when a full window exceeds the deadline
+    (under `chunks` too, though the prediction counts every piece). An integer: that, capped to what the policy can
+    pass. `auto`: the largest multiple of AUTO_STEP from MIN_TOKENS to that cap whose predicted cost fits in
+    AUTO_SHARE of the deadline, else MIN_TOKENS with a warning (the service starts anyway: shedding sometimes beats a
+    crash loop)."""
     ceiling = policy.ceiling
 
     def predicted(tokens: int) -> float:
         return cost.predict_pieces(policy.piece_lengths(tokens))
 
     if setting is None:
-        ms = predicted(ceiling)
-        return InputLimit(None, ceiling, "window", ms, warning=ms > deadline_ms)
+        window_ms = cost.predict(policy.window)
+        return InputLimit(None, ceiling, "window", predicted(ceiling), warning=window_ms > deadline_ms)
     if setting == "auto":
         budget = AUTO_SHARE * deadline_ms
         candidates = range(ceiling // AUTO_STEP * AUTO_STEP, MIN_TOKENS - 1, -AUTO_STEP)

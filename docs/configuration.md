@@ -60,7 +60,7 @@ is bounded by `S1D1_MAX_INPUT_TOKENS`, in tokens passed to the model with CLS an
 
 | value | limit | logged at start-up |
 |---|---|---|
-| empty (default) | the window (1 024), or `S1D1_CHUNK_MAX` pieces under `chunks`: as before | `capacity_warning` if a text that fills it is predicted beyond the deadline |
+| empty (default) | the window (1 024), or `S1D1_CHUNK_MAX` pieces under `chunks`: as before | `capacity_warning` if a full window is predicted beyond the deadline, as before |
 | an integer, 128 or more | that, capped to what the policy can pass (the window, or `S1D1_CHUNK_MAX` × `S1D1_CHUNK_TOKENS` under `chunks`) | `input_limit_capped` when capped; `capacity_warning` if its predicted cost exceeds `S1D1_DEADLINE_MS` |
 | `auto` | the largest multiple of 64, from 128 to that cap, whose predicted cost fits in **half** of `S1D1_DEADLINE_MS`, computed once after warm-up | `capacity_warning` if even 128 does not fit |
 
@@ -114,8 +114,8 @@ The JSON line `{"event": "ready", ...}` printed after warm-up reports:
 | `max_body_bytes` | the largest request body |
 | `sustainable_rps` | requests per second for a typical 64-token prompt, one replica |
 
-If `predicted_ms_limit` exceeds `S1D1_DEADLINE_MS`, a `capacity_warning` line says so: prompts that fill the limit
-will be shed even on an idle replica. Set `S1D1_MAX_INPUT_TOKENS=auto` (or a smaller integer), give the replica more
+If `predicted_ms_limit` exceeds `S1D1_DEADLINE_MS` (with the default limit: if `predicted_ms_1024` does), a
+`capacity_warning` line says so: prompts that fill the limit will be shed even on an idle replica. Set `S1D1_MAX_INPUT_TOKENS=auto` (or a smaller integer), give the replica more
 CPU, or raise the deadline. Replicas needed: the expected request rate divided by `sustainable_rps`, with headroom for the
 queue.
 
