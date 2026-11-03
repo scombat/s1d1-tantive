@@ -460,10 +460,11 @@ def test_cut_keeps_the_ids_of_the_full_encoding_on_the_corpus(onnx_model):
             whole = onnx_model.encode(text)
             for name in POLICIES:
                 for useful in (1022, 510, 254):
-                    p = at(name, useful)
-                    cut = encode(onnx_model, text, p)
-                    assert piece_ids(split(cut, p)[0]) == piece_ids(split(whole, p)[0]), (lang, chars, name, useful)
-                    assert chars == 20_000 or cut.truncated is True  # 100 000 characters are beyond every cut
+                    for p in (at(name, useful), limited(name, useful + 2)):  # a smaller window, or an input limit
+                        cut = encode(onnx_model, text, p)
+                        case = (lang, chars, name, useful, p.max_input_tokens)
+                        assert piece_ids(split(cut, p)[0]) == piece_ids(split(whole, p)[0]), case
+                        assert chars == 20_000 or cut.truncated is True  # 100 000 characters are beyond every cut
 
 
 def random_text(rng: np.random.Generator, chars: int) -> str:
@@ -585,3 +586,172 @@ async def test_outputs_match_0_8_1_on_the_corpus(onnx_model):
             assert out.needs_tools_logit == pytest.approx(want["needs_tools_logit"], abs=1e-4), key
             assert np.allclose(out.task_logits, want["task_logits"], atol=1e-4), key
         await e.close()
+
+
+# --- the input limit (docs/40 § 4): at most L tokens passed to the model, CLS and SEP included -----------------------
+
+
+def limited(name: str, limit: int | None, **kw) -> LongPromptPolicy:
+    return LongPromptPolicy(name, window=WINDOW, max_input_tokens=limit, **kw)
+
+
+@pytest.mark.parametrize("limit", [128, 255, 256, 512, 1024])
+def test_single_piece_policies_keep_the_limit(limit):
+    u = limit - 2
+    (head,), cut = split(encoded(3000), limited("head", limit))
+    assert cut is True and body(head) == list(range(u))
+    (tail,), cut = split(encoded(3000), limited("tail", limit))
+    assert cut is True and body(tail) == list(range(3000 - u, 3000))
+    (ht,), cut = split(encoded(3000), limited("head_tail", limit))
+    assert cut is True and body(ht) == list(range(u // 2)) + list(range(3000 - u // 2, 3000))
+    assert max(len(p.ids) for p in (head, tail, ht)) <= limit
+
+
+@pytest.mark.parametrize("name", POLICIES)
+def test_a_text_within_the_limit_passes_whole(name):
+    pieces, cut = split(encoded(254), limited(name, 256))
+    assert cut is False and piece_ids(pieces) == [encoded(254).ids.tolist()]
+    pieces, cut = split(encoded(800), limited(name, 256))  # under the window, over the limit: now cut
+    assert cut is True and sum(len(p.ids) for p in pieces) <= 256
+
+
+def test_an_empty_limit_is_the_window():
+    assert policy("head_tail").limit == WINDOW and limited("head_tail", None).limit == WINDOW
+    assert policy("chunks").limit == 8 * WINDOW
+    assert policy("chunks", chunk_tokens=512, chunk_max=3).limit == 3 * 512
+
+
+def test_chunks_total_never_exceeds_the_limit():
+    for chunk_tokens, chunk_max in ((1024, 8), (512, 3), (128, 32), (300, 5)):
+        for limit in (128, 200, 512, 1024, 1100, 1500, 2048, 3000, 8192):
+            for n in (100, 254, 1022, 1023, 2000, 5000, 20_000):
+                p = limited("chunks", limit, chunk_tokens=chunk_tokens, chunk_max=chunk_max, overlap=64)
+                pieces, cut = split(encoded(n), p)
+                lengths = [len(x.ids) for x in pieces]
+                case = (chunk_tokens, chunk_max, limit, n, lengths)
+                assert sum(lengths) <= limit and len(pieces) <= chunk_max, case
+                assert max(lengths) <= min(chunk_tokens, WINDOW) or len(pieces) == 1, case
+                covered = set().union(*(body(x) for x in pieces))
+                assert cut is (covered != set(range(n))), case
+                ends = [body(x)[-1] == n - 1 for x in pieces]
+                assert all(length >= 128 for length, end in zip(lengths, ends, strict=True) if not end), case
+
+
+@pytest.mark.parametrize("limit", [128, 256, 1000, 1024])
+@pytest.mark.parametrize("name", ["head", "tail", "head_tail"])
+def test_pieces_of_a_full_limit_single(name, limit):
+    p = limited(name, limit)
+    assert p.piece_lengths(p.limit) == [len(x.ids) for x in split(encoded(50_000), p)[0]]
+
+
+@pytest.mark.parametrize("limit", [128, 1100, 2100, 2500, 4096, 8192])
+def test_pieces_of_a_full_limit_chunks(limit):
+    p = limited("chunks", limit)
+    assert p.piece_lengths(p.limit) == [len(x.ids) for x in split(encoded(50_000), p)[0]]
+
+
+def test_pieces_of_a_full_limit_values():
+    assert limited("chunks", 2500).piece_lengths(2500) == [1024, 1024, 452]
+    assert limited("chunks", 2100).piece_lengths(2100) == [1024, 1024]  # 52 tokens left: not run
+    assert policy("head_tail").piece_lengths(1024) == [1024]
+
+
+def test_the_cut_follows_the_limit():
+    text = varied(100_000)
+    for p, want in (
+        (limited("head", 256), [text[: 8 * 254]]),
+        (limited("tail", 256), [text[-8 * 254 :]]),
+        (limited("head_tail", 256), [text[: 8 * 127], text[-8 * 127 :]]),
+        (limited("chunks", 2048), [text[: 8 * 2048]]),
+    ):
+        model = CharModel()
+        encode(model, text, p)
+        assert model.seen == want, p.name
+
+
+# --- the limit's value: empty, an integer, or auto (docs/40 § 4) -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("fixed", "per_token", "want", "warning"),
+    [(2, 1.39, 256, False), (3, 0.2, 1024, False), (5, 3.0, 128, False), (10, 4.0, 128, True)],
+)
+def test_auto_is_the_largest_multiple_of_64_within_half_the_deadline(fixed, per_token, want, warning):
+    from tantive.engine import resolve_limit
+
+    limit = resolve_limit("auto", policy("head_tail"), CostModel(fixed, per_token), deadline_ms=800)
+    assert (limit.effective, limit.source, limit.warning, limit.capped) == (want, "auto", warning, False)
+    assert limit.predicted_ms == pytest.approx(fixed + per_token * want)
+
+
+def test_auto_is_always_a_multiple_of_64():
+    from tantive.engine import resolve_limit
+
+    rng = np.random.default_rng(64)
+    for _ in range(500):
+        cost = CostModel(float(rng.uniform(0, 50)), float(rng.uniform(0.001, 5)))
+        name, chunk_tokens, chunk_max = str(rng.choice(POLICIES)), int(rng.integers(128, 1025)), int(rng.integers(1, 9))
+        p = policy(name, chunk_tokens=chunk_tokens, chunk_max=chunk_max)
+        limit = resolve_limit("auto", p, cost, deadline_ms=int(rng.integers(50, 3000)))
+        assert limit.effective % 64 == 0 and 128 <= limit.effective <= p.limit
+
+
+def test_auto_under_chunks_counts_every_piece():
+    from tantive.engine import resolve_limit
+
+    limit = resolve_limit("auto", policy("chunks"), CostModel(10.0, 0.1), deadline_ms=800)
+    assert limit.effective == 3584  # pieces 1024, 1024, 1024, 512: 4 × 10 + 0.1 × 3584 = 398.4 ms within 400
+    assert limit.predicted_ms == pytest.approx(398.4)
+
+
+def test_an_integer_is_capped_to_what_the_policy_can_pass():
+    from tantive.engine import resolve_limit
+
+    cost = CostModel(1.0, 0.01)
+    limit = resolve_limit(5000, policy("head_tail"), cost, deadline_ms=800)
+    assert (limit.setting, limit.effective, limit.source, limit.capped) == (5000, 1024, "user", True)
+    assert resolve_limit(5000, policy("chunks"), cost, 800).effective == 5000
+    assert resolve_limit(9000, policy("chunks"), cost, 800).effective == 8192
+    assert resolve_limit(512, policy("head_tail"), cost, 800).capped is False
+
+
+def test_an_integer_beyond_the_deadline_warns():
+    from tantive.engine import resolve_limit
+
+    limit = resolve_limit(512, policy("head_tail"), CostModel(10.0, 2.0), deadline_ms=800)
+    assert (limit.effective, limit.warning) == (512, True)
+    assert limit.predicted_ms == pytest.approx(1034.0)
+    assert resolve_limit(256, policy("head_tail"), CostModel(10.0, 2.0), 800).warning is False
+
+
+def test_an_empty_limit_is_the_window_as_before():
+    from tantive.engine import resolve_limit
+
+    limit = resolve_limit(None, policy("head_tail"), CostModel(1.0, 1.0), deadline_ms=800)
+    assert (limit.setting, limit.effective, limit.source, limit.warning) == (None, 1024, "window", True)
+    assert resolve_limit(None, policy("chunks"), CostModel(1.0, 0.01), 10_000).effective == 8192
+
+
+async def test_the_engine_computes_auto_once_and_applies_it(monkeypatch):
+    import tantive.engine as engine_module
+
+    calls, runs = [], []
+    real = engine_module.resolve_limit
+    monkeypatch.setattr(engine_module, "resolve_limit", lambda *a, **k: calls.append(a) or real(*a, **k))
+    model = CountingModel(5000)
+    model.run_encoded = lambda pieces: runs.append([len(p.ids) for p in pieces]) or [row(0.0) for _ in pieces]
+    e = Engine(model, 800, 32, cost=CostModel(2.0, 1.39), max_input_tokens="auto")
+    await e.start()
+    for _ in range(3):
+        await e.classify("long")
+    await e.close()
+    assert len(calls) == 1
+    assert (e.input_limit.effective, e.input_limit.source, e.policy.limit) == (256, "auto", 256)
+    assert runs == [[256]] * 3
+
+
+async def test_an_empty_limit_leaves_the_engine_as_before(fake_model):
+    e = Engine(fake_model, 800, 32, cost=CostModel(1.0, 0.01))
+    await e.start()
+    await e.close()
+    assert e.policy.max_input_tokens is None and e.input_limit.source == "window"

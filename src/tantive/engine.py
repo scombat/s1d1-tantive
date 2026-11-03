@@ -2,7 +2,8 @@
 
 ONNX Runtime already uses every core for one pass, so passes are serialised on a single worker thread. A request is
 accepted only when the predicted wait (what is queued or running, plus its own predicted cost) fits in the deadline;
-otherwise it is rejected at once with Overloaded, which adapters turn into 503 + Retry-After.
+otherwise it is rejected at once with Overloaded, which adapters turn into 503 + Retry-After. The input limit
+(S1D1_MAX_INPUT_TOKENS, docs/40 § 4) bounds that own cost; under `auto` it is computed once, after the warm-up.
 """
 
 from __future__ import annotations
@@ -11,13 +12,15 @@ import asyncio
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from tantive.longprompt import LongPromptPolicy, encode, merge, split
+from tantive.longprompt import MIN_TOKENS, LongPromptPolicy, encode, merge, split
 from tantive.model import Encoded, Model, Outputs
 from tantive.telemetry import metrics
 
 WARMUP_TOKENS = (16, 256, 1024)
+AUTO_SHARE = 0.5  # of the deadline: a request that fills the limit can wait behind another one and still fit
+AUTO_STEP = 64
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,43 @@ class CostModel:
     def predict_pieces(self, lengths: list[int]) -> float:
         """A text run as several pieces in one pass: the fixed cost of each piece plus the cost of all their tokens."""
         return self.fixed_ms * len(lengths) + self.per_token_ms * sum(lengths)
+
+
+@dataclass(frozen=True)
+class InputLimit:
+    """S1D1_MAX_INPUT_TOKENS resolved once, after the warm-up (docs/40 § 4)."""
+
+    setting: int | str | None  # as configured: None (empty), an integer or "auto"
+    effective: int  # tokens passed to the model at most, CLS and SEP included
+    source: str  # "window" (empty), "user" (an integer) or "auto"
+    predicted_ms: float  # the cost model's prediction for a text that fills the limit
+    capped: bool = False  # an integer above what the policy can pass
+    warning: bool = False  # the prediction exceeds the deadline (half of it under auto, even at the floor)
+
+
+def resolve_limit(
+    setting: int | str | None, policy: LongPromptPolicy, cost: CostModel, deadline_ms: int
+) -> InputLimit:
+    """Empty: what the policy can pass, as before. An integer: that, capped to what the policy can pass. `auto`: the
+    largest multiple of AUTO_STEP from MIN_TOKENS to that cap whose predicted cost fits in AUTO_SHARE of the deadline,
+    else MIN_TOKENS with a warning (the service starts anyway: shedding sometimes beats a crash loop)."""
+    ceiling = policy.ceiling
+
+    def predicted(tokens: int) -> float:
+        return cost.predict_pieces(policy.piece_lengths(tokens))
+
+    if setting is None:
+        ms = predicted(ceiling)
+        return InputLimit(None, ceiling, "window", ms, warning=ms > deadline_ms)
+    if setting == "auto":
+        budget = AUTO_SHARE * deadline_ms
+        candidates = range(ceiling // AUTO_STEP * AUTO_STEP, MIN_TOKENS - 1, -AUTO_STEP)
+        effective = next((n for n in candidates if predicted(n) <= budget), MIN_TOKENS)
+        ms = predicted(effective)
+        return InputLimit("auto", effective, "auto", ms, warning=ms > budget)
+    effective = min(int(setting), ceiling)
+    ms = predicted(effective)
+    return InputLimit(setting, effective, "user", ms, capped=int(setting) > ceiling, warning=ms > deadline_ms)
 
 
 class Overloaded(Exception):
@@ -47,9 +87,12 @@ class Engine:
         max_queue: int,
         cost: CostModel | None = None,
         policy: LongPromptPolicy | None = None,
+        max_input_tokens: int | str | None = None,
     ) -> None:
         self.model = model
         self.policy = policy or LongPromptPolicy(window=model.info.max_length)
+        self.max_input_tokens = max_input_tokens
+        self.input_limit: InputLimit | None = None  # resolved by start(), after the warm-up
         self.deadline_ms = deadline_ms
         self.max_queue = max_queue
         self._cost = cost
@@ -86,6 +129,9 @@ class Engine:
         self._tokenizer_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="s1d1-tokenize")
         if self._cost is None:
             self._cost = await asyncio.get_running_loop().run_in_executor(self._executor, self.warmup)
+        self.input_limit = resolve_limit(self.max_input_tokens, self.policy, self._cost, self.deadline_ms)
+        if self.input_limit.source != "window":
+            self.policy = replace(self.policy, max_input_tokens=self.input_limit.effective)
 
     def warmup(self) -> CostModel:
         """Run three synthetic texts, one untimed pass then two timed ones each, and fit

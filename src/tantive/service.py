@@ -38,7 +38,7 @@ def router(
 
     @r.get("/info")
     def service_info() -> dict:
-        cost = engine.cost
+        cost, limit = engine.cost, engine.input_limit
         return {
             "service": SERVICE_NAME,
             "version": __version__,
@@ -60,6 +60,15 @@ def router(
                 "score": settings.chunk_score,
                 "task": settings.chunk_task,
             },
+            "max_input_tokens": None
+            if limit is None
+            else {
+                "setting": limit.setting,
+                "effective": limit.effective,
+                "source": limit.source,
+                "predicted_ms": round(limit.predicted_ms, 2),
+            },
+            "max_body_bytes": settings.max_body_bytes,
             "deadline_ms": settings.deadline_ms,
             "max_queue": settings.max_queue,
             "threads": settings.threads,

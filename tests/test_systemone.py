@@ -154,9 +154,9 @@ async def test_invalid_body_400(client):
     assert r.json()["error"]["type"] == "invalid_request_error"
 
 
-async def test_text_over_50000_chars_413(client):
+async def test_text_over_50000_chars_is_classified(client):
     r = await client.post("/v1/systemone", json={"state": "x" * 50_001, "questions": tier_question("LOW", "HIGH")})
-    assert r.status_code == 413
+    assert r.status_code == 200  # cut, not refused: 413 until 0.8.x
 
 
 async def test_over_64_questions_400(client):
@@ -228,9 +228,8 @@ async def test_batch_invalid_states_get_an_error_each(client):
     r = await client.post("/v1/systemone/batch", json={"states": states, "questions": tier_question("LOW", "HIGH")})
     assert r.status_code == 200
     results = r.json()["results"]
-    assert "answers" in results[0] and "answers" in results[3]
+    assert "answers" in results[0] and "answers" in results[2] and "answers" in results[3]  # a long text is cut
     assert results[1]["error"]["type"] == "invalid_request_error"
-    assert results[2] == {"error": {"message": "text exceeds 50000 characters", "type": "request_too_large"}}
 
 
 async def test_batch_every_state_failed_is_422(client):

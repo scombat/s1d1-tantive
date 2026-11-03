@@ -19,7 +19,9 @@ names it.
 | `S1D1_CHUNK_MAX` | 8 | `chunks` only: most pieces per prompt, 1 to 32; the remainder is dropped and `truncated` is true |
 | `S1D1_CHUNK_SCORE` | `max` | `chunks` only: how the pieces' complexity merges, `max`, `first`, `length_weighted`, `mean` or `median` |
 | `S1D1_CHUNK_TASK` | `sum_logits` | `chunks` only: how the pieces' task merges, `sum_logits` (the summed logits) or `vote` (majority, ties to the larger logit) |
+| `S1D1_MAX_INPUT_TOKENS` | empty | tokens passed to the model at most, CLS and SEP included: empty for the window (as before), an integer of 128 or more, or `auto` (below); the rest of a longer text is ignored, never refused |
 | `S1D1_DEADLINE_MS`, `S1D1_MAX_QUEUE` | 800, 32 | shed a request (503 + `Retry-After: 1`) when its expected wait exceeds the deadline or the queue is full |
+| `S1D1_MAX_BODY_BYTES` | 2 097 152 (2 MiB) | largest request body, 65 536 to 33 554 432; a larger body is answered 413 |
 | `S1D1_API_KEY` | none | when set, adapter routes need `Authorization: Bearer <key>` (or `x-api-key`) |
 | `S1D1_LOG_PROMPTS` | 0 | 1 to write the classified text in the decision log line |
 | `S1D1_CAPTURE_DIR`, `S1D1_CAPTURE_SAMPLE`, `S1D1_CAPTURE_MIN_MARGIN`, `S1D1_CAPTURE_MAX_MB`, `S1D1_CAPTURE_RETENTION_DAYS`, `S1D1_CAPTURE_QUEUE` | none, 1.0, empty, 100, empty, 10000 | keep the classified prompts in JSONL files, off unless the folder is set ([capture.md](capture.md)) |
@@ -50,6 +52,31 @@ and 8 × `S1D1_CHUNK_MAX` × `S1D1_CHUNK_TOKENS` under `chunks`), then cut exact
 to 3 characters per token, so the kept tokens are those of the whole text, and a 2 MiB text is tokenised in about 1 ms
 instead of 300 (Apple M4 Max). A text of more than 8 characters per token (a run of newlines or of `=`) keeps fewer
 tokens than the policy allows, and still reports `truncated`. `tantive_tokenize_seconds` on `/metrics` shows the time.
+
+## The input limit
+
+A long text is never refused: the only size error left is the body (`S1D1_MAX_BODY_BYTES`, 413). What the model reads
+is bounded by `S1D1_MAX_INPUT_TOKENS`, in tokens passed to the model with CLS and SEP, the unit of the window:
+
+| value | limit | logged at start-up |
+|---|---|---|
+| empty (default) | the window (1 024), or `S1D1_CHUNK_MAX` pieces under `chunks`: as before | `capacity_warning` if a text that fills it is predicted beyond the deadline |
+| an integer, 128 or more | that, capped to what the policy can pass (the window, or `S1D1_CHUNK_MAX` × `S1D1_CHUNK_TOKENS` under `chunks`) | `input_limit_capped` when capped; `capacity_warning` if its predicted cost exceeds `S1D1_DEADLINE_MS` |
+| `auto` | the largest multiple of 64, from 128 to that cap, whose predicted cost fits in **half** of `S1D1_DEADLINE_MS`, computed once after warm-up | `capacity_warning` if even 128 does not fit |
+
+With a limit `L`, a longer text keeps `L − 2` useful tokens: the first ones under `head`, the last ones under `tail`,
+half and half under `head_tail`. Under `chunks` the limit counts every piece, overlaps and CLS/SEP included: pieces
+run while the total stays within `L`, the last one shortened to the room left and not run under 128 tokens. A text
+between `L` and the window is now cut too, and reports `truncated`. Half of the deadline lets a request that fills the
+limit wait behind another one of the same size and still answer in time, so with `auto` an idle replica never answers
+503 for the size of a text: a 503 then means load. `auto` depends on the machine and on the warm-up: use it to find
+the value, read `max_input_tokens` in the `ready` line, then set that integer in production so every replica keeps
+the same tokens. The effective value is in the `ready` line, `/info` (`max_input_tokens`: `setting`, `effective`,
+`source`, `predicted_ms`) and `/metrics` (`tantive_max_input_tokens`, by `source`: `window`, `user` or `auto`).
+
+A larger `S1D1_MAX_BODY_BYTES` costs little CPU (the extraction, the cut and the tokenisation stay bounded), but the
+body is held in memory and parsed, several times its size, for each request in flight: keep it well under the memory
+of the image (512 MiB for `tiny`).
 
 ## Tier names
 
@@ -83,15 +110,18 @@ The JSON line `{"event": "ready", ...}` printed after warm-up reports:
 | `cpus`, `threads` | what the cgroup grants, and the ONNX threads in use |
 | `fixed_ms`, `per_token_ms` | the fitted cost model |
 | `predicted_ms_1024` | the cost of a full-window prompt |
+| `max_input_tokens`, `max_input_tokens_source`, `predicted_ms_limit` | the input limit in effect, where it comes from (`window`, `user`, `auto`) and the cost of a text that fills it |
+| `max_body_bytes` | the largest request body |
 | `sustainable_rps` | requests per second for a typical 64-token prompt, one replica |
 
-If `predicted_ms_1024` exceeds `S1D1_DEADLINE_MS`, a `capacity_warning` line says so: full-window prompts will be
-shed even on an idle replica. Give the replica more CPU, raise the deadline, or accept that the longest prompts go to
-the fallback tier. Replicas needed: the expected request rate divided by `sustainable_rps`, with headroom for the
+If `predicted_ms_limit` exceeds `S1D1_DEADLINE_MS`, a `capacity_warning` line says so: prompts that fill the limit
+will be shed even on an idle replica. Set `S1D1_MAX_INPUT_TOKENS=auto` (or a smaller integer), give the replica more
+CPU, or raise the deadline. Replicas needed: the expected request rate divided by `sustainable_rps`, with headroom for the
 queue.
 
 ## Metrics and tracing
 
 `GET /metrics` exposes `tantive_decisions_total` (by tier), `tantive_request_latency_seconds` (queue included),
-`tantive_prompt_tokens`, `tantive_tokenize_seconds`, `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total` and the gauge `tantive_capture_send_pending_bytes`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
+`tantive_prompt_tokens`, `tantive_tokenize_seconds`, `tantive_truncated_requests_total` (decisions on a text of which
+some part was not passed), the gauge `tantive_max_input_tokens`, `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total` and the gauge `tantive_capture_send_pending_bytes`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
 and traces over OTLP; `/health`, `/ready` and `/metrics` are not traced. Logs are JSON lines on standard output.
