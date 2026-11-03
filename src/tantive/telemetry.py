@@ -21,6 +21,7 @@ SERVICE_NAME = "s1d1-tantive"
 RESOURCE = Resource.create({"service.name": SERVICE_NAME, SERVICE_VERSION: __version__})
 LATENCY_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 0.8, 1.0, 2.0)
 TOKEN_BUCKETS = (16, 32, 64, 128, 256, 512, 768, 1024)
+TOKENIZE_BUCKETS = (0.0005, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5)
 
 
 def otlp_url(endpoint: str, signal: str) -> str | None:
@@ -63,6 +64,31 @@ class Metrics:
             description="Tokens of the classified text",
             explicit_bucket_boundaries_advisory=TOKEN_BUCKETS,
         )
+        self._tokenize = meter.create_histogram(
+            "tantive_tokenize",
+            unit="s",
+            description="Time to tokenise the text of a request (only the part the long-prompt policy can keep)",
+            explicit_bucket_boundaries_advisory=TOKENIZE_BUCKETS,
+        )
+        self._truncated = meter.create_counter(
+            "tantive_truncated_requests", description="Decisions on a text of which some part was not passed"
+        )
+        self._max_input_tokens = meter.create_gauge(
+            "tantive_max_input_tokens",
+            description="Tokens passed to the model at most (S1D1_MAX_INPUT_TOKENS resolved; `source`: window, user, "
+            "auto)",
+        )
+        self._cache_hits = meter.create_counter(
+            "tantive_cache_hits",
+            description="Decisions answered by the cache (`source`: stored, or in_flight for a pass already running)",
+        )
+        self._cache_misses = meter.create_counter(
+            "tantive_cache_misses", description="Passes started while the cache is on"
+        )
+        self._cache_evictions = meter.create_counter(
+            "tantive_cache_evictions", description="Entries that left the cache (`reason`: capacity or expired)"
+        )
+        self._cache_entries = meter.create_gauge("tantive_cache_entries", description="Entries in the cache")
         self._in_flight = meter.create_up_down_counter(
             "tantive_in_flight_requests", description="Decision requests accepted and not yet answered"
         )
@@ -116,6 +142,27 @@ class Metrics:
 
     def overloaded(self) -> None:
         self._overloaded.add(1)
+
+    def tokenized(self, seconds: float) -> None:
+        self._tokenize.record(seconds)
+
+    def truncated(self) -> None:
+        self._truncated.add(1)
+
+    def max_input_tokens(self, tokens: int, source: str) -> None:
+        self._max_input_tokens.set(tokens, {"source": source})
+
+    def cache_hit(self, source: str) -> None:
+        self._cache_hits.add(1, {"source": source})
+
+    def cache_miss(self) -> None:
+        self._cache_misses.add(1)
+
+    def cache_evicted(self, reason: str) -> None:
+        self._cache_evictions.add(1, {"reason": reason})
+
+    def cache_entries(self, n: int) -> None:
+        self._cache_entries.set(n)
 
     @contextmanager
     def in_flight(self) -> Iterator[None]:
@@ -198,8 +245,11 @@ def log_decision(
     latency_ms: float,
     allowed: Sequence[str] | None,
     prompt: str | None,
+    input_chars: int | None = None,
+    cache: str | None = None,
 ) -> None:
-    """The decision line; the prompt only when S1D1_LOG_PROMPTS=1."""
+    """The decision line; the length of the text always, the prompt itself only when S1D1_LOG_PROMPTS=1, how the
+    cache answered (hit, shared, miss) only when it is on."""
     fields: dict[str, Any] = {
         "route": route,
         "format": fmt,
@@ -210,9 +260,12 @@ def log_decision(
         "tokens": outputs.prompt_tokens,
         "truncated": outputs.truncated,
         "pieces": outputs.pieces,
+        "input_chars": input_chars,
         "latency_ms": round(latency_ms, 1),
         "allowed": list(allowed) if allowed is not None else None,
     }
+    if cache is not None:
+        fields["cache"] = cache
     if _log_prompts and prompt is not None:
         fields["prompt"] = prompt
     log_event("decision", **fields)

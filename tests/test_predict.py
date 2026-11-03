@@ -55,8 +55,8 @@ async def test_predict_list_answers_per_input(client_predict):
     j = r.json()
     assert len(j[0]) == 21
     assert j[1] == {"error": {"message": "no text to classify", "type": "invalid_request_error"}}
-    assert j[2]["error"]["type"] == "request_too_large"
-    assert r.headers["x-s1d1-pieces"] == "1"
+    assert len(j[2]) == 21  # a long text is cut, not refused
+    assert r.headers["x-s1d1-pieces"] == "2"
 
 
 async def test_predict_every_input_failed_is_422(client_predict):

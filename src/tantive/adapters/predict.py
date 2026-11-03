@@ -58,7 +58,7 @@ def router(_app: FastAPI) -> APIRouter:
             if isinstance(item, ApiError):
                 results.append(item_error(item))
                 continue
-            record(core, ROUTE, FORMAT, item.outputs, item.latency_ms, prompt=item.text)
+            record(core, ROUTE, FORMAT, item.outputs, item.latency_ms, prompt=item.text, cache=item.cache)
             values = raw_vector(item.outputs) if body.raw_scores else decoded_vector(item.outputs)
             scored = [{"score": v, "label": label} for v, label in zip(values, LABELS, strict=True)]
             results.append(sorted(scored, key=lambda d: d["score"], reverse=True))

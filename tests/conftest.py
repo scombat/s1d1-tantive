@@ -124,10 +124,11 @@ async def client_with_key(fake_model, settings_factory):
 
 @pytest.fixture
 def overloaded_engine(monkeypatch):
-    """Every classify() is rejected, as when the queue's expected wait exceeds the deadline."""
+    """Every classify_cached() (what the adapters call) is rejected, as when the queue's expected wait exceeds the
+    deadline."""
     from tantive.engine import Engine, Overloaded
 
     async def reject(self, text):
         raise Overloaded(1234.0)
 
-    monkeypatch.setattr(Engine, "classify", reject)
+    monkeypatch.setattr(Engine, "classify_cached", reject)

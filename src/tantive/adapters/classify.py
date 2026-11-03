@@ -55,7 +55,7 @@ def router(_app: FastAPI) -> APIRouter:
             if isinstance(item, ApiError):
                 data.append({"index": i, **item_error(item)})
                 continue
-            tier = record(core, ROUTE, FORMAT, item.outputs, item.latency_ms, prompt=item.text)
+            tier = record(core, ROUTE, FORMAT, item.outputs, item.latency_ms, prompt=item.text, cache=item.cache)
             tokens += item.outputs.prompt_tokens
             pieces += item.outputs.pieces
             data.append({"index": i, "label": tier, "probs": decoded_vector(item.outputs), "num_classes": 21})
