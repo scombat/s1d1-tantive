@@ -123,11 +123,11 @@ def router(_app: FastAPI) -> APIRouter:
         check_count(body.questions, MAX_DECISION_QUESTIONS, "question")
         questions = [to_question(i, q) for i, q in enumerate(body.questions)]
         text = ask_of(input_text(body.input))
-        outputs, latency_ms = await classify(core, text)
+        outputs, latency_ms, cache = await classify(core, text)
         answers = [
             to_wire(q, answer(core, outputs, question)) for q, question in zip(body.questions, questions, strict=True)
         ]
-        record(core, ROUTE, FORMAT, outputs, latency_ms, prompt=text)
+        record(core, ROUTE, FORMAT, outputs, latency_ms, prompt=text, cache=cache)
         tokens = outputs.prompt_tokens
         return {
             "model": core.model_name,

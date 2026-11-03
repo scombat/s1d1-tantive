@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tantive import service
 from tantive.adapters import ADAPTERS
+from tantive.cache import Cache
 from tantive.capture import Capture
 from tantive.config import ConfigError, Settings, cpu_count_from_cgroup
 from tantive.engine import Engine
@@ -24,10 +25,8 @@ from tantive.model import Model, ModelInfo
 from tantive.prefix import PrefixMiddleware
 from tantive.questions import Catalogue
 from tantive.send import Sender
-from tantive.telemetry import configure_otel, log_event
+from tantive.telemetry import configure_otel, log_event, metrics
 from tantive.tiers import TierSet, native_set
-
-MAX_BODY_BYTES = 2 * 1024 * 1024
 
 
 def install_error_handlers(app: FastAPI) -> None:
@@ -95,9 +94,10 @@ MEDIAN_TOKENS = 64  # p50 of the research test set (docs/21 § 5.1): the "typica
 
 
 def log_ready(settings: Settings, info: ModelInfo, engine: Engine) -> None:
-    """The `ready` line: what was loaded, the fitted cost model and what it means for capacity; a
-    `capacity_warning` when a full-window prompt is predicted to exceed the deadline (it would be shed)."""
-    cost = engine.cost
+    """The `ready` line: what was loaded, the fitted cost model, the input limit and what they mean for capacity;
+    `input_limit_capped` when S1D1_MAX_INPUT_TOKENS is above what the policy can pass, and a `capacity_warning` when
+    a prompt that fills the limit is predicted beyond the deadline (half of it under auto): it would be shed."""
+    cost, limit = engine.cost, engine.input_limit
     predicted_1024 = round(cost.predict(info.max_length)) if cost else None
     typical = cost.predict(MEDIAN_TOKENS) if cost else None
     log_event(
@@ -115,13 +115,44 @@ def log_ready(settings: Settings, info: ModelInfo, engine: Engine) -> None:
         per_token_ms=round(cost.per_token_ms, 4) if cost else None,
         predicted_ms_1024=predicted_1024,
         sustainable_rps=round(1000 / typical, 1) if typical else None,
+        max_input_tokens=limit.effective if limit else None,
+        max_input_tokens_source=limit.source if limit else None,
+        predicted_ms_limit=round(limit.predicted_ms) if limit else None,
+        max_body_bytes=settings.max_body_bytes,
+        cache_ttl_s=settings.cache_ttl_s,
+        cache_max_entries=settings.cache_max_entries,
     )
-    if predicted_1024 is not None and predicted_1024 > settings.deadline_ms:
+    if limit is None:
+        return
+    metrics().max_input_tokens(limit.effective, limit.source)
+    if limit.capped:
+        log_event(
+            "input_limit_capped",
+            level=logging.WARNING,
+            message=f"S1D1_MAX_INPUT_TOKENS={limit.setting} is more than S1D1_LONG_PROMPTS={settings.long_prompts} "
+            f"can pass: {limit.effective} tokens kept",
+            requested=limit.setting,
+            effective=limit.effective,
+        )
+    if limit.warning:
+        predicted = round(limit.predicted_ms)
+        if limit.source == "auto":
+            message = (
+                f"even {limit.effective} tokens, the floor of S1D1_MAX_INPUT_TOKENS=auto, are predicted at {predicted}"
+                f" ms, beyond half of S1D1_DEADLINE_MS={settings.deadline_ms}: such a prompt may be shed with 503"
+            )
+        else:
+            message = (
+                f"a prompt that fills the input limit ({limit.effective} tokens) is predicted at {predicted} ms, "
+                f"beyond S1D1_DEADLINE_MS={settings.deadline_ms}: it will be shed with 503 even on an idle server; "
+                "S1D1_MAX_INPUT_TOKENS=auto or a smaller integer keeps it within the deadline"
+            )
         log_event(
             "capacity_warning",
             level=logging.WARNING,
-            message=f"a full-window prompt ({info.max_length} tokens) is predicted at {predicted_1024} ms, beyond "
-            f"S1D1_DEADLINE_MS={settings.deadline_ms}: it will be shed with 503 even on an idle server",
+            message=message,
+            max_input_tokens=limit.effective,
+            predicted_ms_limit=predicted,
             predicted_ms_1024=predicted_1024,
             deadline_ms=settings.deadline_ms,
         )
@@ -137,6 +168,8 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
         deadline_ms=settings.deadline_ms,
         max_queue=settings.max_queue,
         policy=LongPromptPolicy.from_settings(settings, window=model.info.max_length),
+        max_input_tokens=settings.max_input_tokens,
+        cache=Cache(settings.cache_ttl_s, settings.cache_max_entries) if settings.cache_ttl_s > 0 else None,
     )
     # sigma comes with the weights; S1D1_DEFAULT_SIGMA applies only when variant.json carries none
     info = (
@@ -196,7 +229,7 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
     app.state.capture = capture
     app.state.sender = sender
     install_error_handlers(app)
-    app.add_middleware(_BodySizeLimit, limit=MAX_BODY_BYTES)
+    app.add_middleware(_BodySizeLimit, limit=settings.max_body_bytes)
     app.add_middleware(PrefixMiddleware, prefix=settings.root_path)
     app.include_router(service.router(engine, settings, info, native, sender))
     auth = require_api_key(settings)

@@ -25,6 +25,8 @@ The cost is close to linear in tokens (a prompt is cut at 1 024 tokens; under `c
 [configuration.md](configuration.md#prompts-longer-than-the-window)). The two coefficients are rounded fits of the
 measured points: use your own `fixed_ms` and `per_token_ms` from the `ready` line when you have them.
 
+**Cache.** `S1D1_CACHE_TTL_S` adds about 650 bytes per entry: 7 MiB at the default 10 000 entries (measured).
+
 **Cloud factor.** A cloud vCPU is slower than an M4 core: one Azure core is worth about a half to a third of one.
 Multiply the table by 2 to 3 (plan with 3) for a 1-vCPU replica. Measure on the real platform before you commit.
 
@@ -40,7 +42,8 @@ Multiply the table by 2 to 3 (plan with 3) for a 1-vCPU replica. Measure on the 
 
 `peak_rps` is the peak rate of *classifier calls*, not of LLM requests. With LiteLLM's `classification_mode:
 user_turn` the router classifies the user's turn rather than every message in the conversation, so an agent loop that
-sends many calls for one question costs one classification: count user turns, not LLM calls.
+sends many calls for one question costs one classification: count user turns, not LLM calls. With the cache on
+(`S1D1_CACHE_TTL_S`), a text repeated within its lifetime costs no pass either: count distinct texts.
 
 ## 3. The deadline
 
@@ -48,9 +51,14 @@ sends many calls for one question costs one classification: count user turns, no
 
 - Keep it **below the classifier timeout in LiteLLM** (1000 ms recommended to start), minus the network round-trip:
   a fast 503 sends the request to the `classifier_fallback`, a timeout counts against LiteLLM's circuit breaker.
-- Keep it **above `predicted_ms_1024`** (the cost of a full-window prompt, in the `ready` line), or a
-  `capacity_warning` says those prompts will always be shed.
+- Keep it **above `predicted_ms_limit`** (the cost of a text that fills the input limit, in the `ready` line), or a
+  `capacity_warning` says those prompts will always be shed. With the default limit, the window, that is
+  `predicted_ms_1024`.
 - Cloud estimate of `predicted_ms_1024`: `(fixed_ms + per_token_ms × 1024) × 3`: `small` 327 ms, `full` 624 ms.
+- When the window does not fit (a small CPU, a short deadline), set `S1D1_MAX_INPUT_TOKENS=auto`: the service keeps
+  the most tokens whose cost fits in half of the deadline (a multiple of 64, at least 128) and stops shedding long
+  prompts on an idle replica. Read the value in the `ready` line and set it as an integer in production. Estimates
+  for an 800 ms deadline: `small` on a cloud core keeps the window, `full` on a cloud core about 640 tokens.
 
 ## 4. Variant, CPU and GPU
 

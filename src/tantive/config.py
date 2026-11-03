@@ -17,6 +17,8 @@ DEFAULT_FORMATS = "systemone,decisions,classify"
 CGROUP_CPU_MAX = "/sys/fs/cgroup/cpu.max"
 DEFAULT_CAPTURE_URL = "https://s1d1.qoo.gy/ingest"
 LOOPBACK_HOSTS: tuple[str, ...] = ("localhost", "127.0.0.1", "::1")
+DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024
+MAX_BODY_BYTES_RANGE = (64 * 1024, 32 * 1024 * 1024)  # LiteLLM states with their quoted context .. the tiny image
 
 
 class ConfigError(ValueError):
@@ -69,6 +71,10 @@ class Settings:
     capture_batch: int = 100
     capture_send_seconds: int = 30
     terms_version: str = "v1"
+    max_input_tokens: int | Literal["auto"] | None = None  # None: the window (resolved by the engine, docs/40 § 4)
+    max_body_bytes: int = DEFAULT_MAX_BODY_BYTES
+    cache_ttl_s: int = 0  # 0: no cache (docs/40 § 6)
+    cache_max_entries: int = 10000
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Settings:
@@ -118,6 +124,16 @@ class Settings:
             capture_batch=_int(env, "S1D1_CAPTURE_BATCH", default=100, minimum=1, maximum=500),
             capture_send_seconds=_int(env, "S1D1_CAPTURE_SEND_SECONDS", default=30, minimum=1, maximum=3600),
             terms_version=env.get("S1D1_TERMS_VERSION", "").strip() or "v1",
+            max_input_tokens=_max_input_tokens(env, "S1D1_MAX_INPUT_TOKENS"),
+            max_body_bytes=_int(
+                env,
+                "S1D1_MAX_BODY_BYTES",
+                default=DEFAULT_MAX_BODY_BYTES,
+                minimum=MAX_BODY_BYTES_RANGE[0],
+                maximum=MAX_BODY_BYTES_RANGE[1],
+            ),
+            cache_ttl_s=_int(env, "S1D1_CACHE_TTL_S", default=0, minimum=0),
+            cache_max_entries=_int(env, "S1D1_CACHE_MAX_ENTRIES", default=10000, minimum=1),
         )
 
 
@@ -170,6 +186,20 @@ def _int(
     if maximum is not None and value > maximum:
         raise ConfigError(f"{name}: {value} is above the maximum {maximum}")
     return value
+
+
+def _max_input_tokens(env: Mapping[str, str], name: str) -> int | Literal["auto"] | None:
+    """Empty (the window), `auto` (computed after the warm-up) or an integer of at least 128 tokens."""
+    raw = env.get(name)
+    if raw is None or not raw.strip():
+        return None
+    if raw.strip() == "auto":
+        return "auto"
+    try:
+        int(raw)
+    except ValueError:
+        raise ConfigError(f"{name}: {raw!r} is neither an integer nor auto") from None
+    return _int(env, name, default=0, minimum=128)
 
 
 def _positive_float(env: Mapping[str, str], name: str, *, default: float) -> float:

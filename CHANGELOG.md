@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- New in-memory cache of the model's outputs, off by default: `S1D1_CACHE_TTL_S` (seconds, 300 recommended for agent
+  traffic) and `S1D1_CACHE_MAX_ENTRIES` (10 000, the oldest entry leaves first). The key is a SHA-256 of the extracted
+  text and of the settings the outputs depend on; tiers are computed again on every request. A stored entry answers
+  before the tokenisation and the admission, even with the queue full, and identical requests in flight share one
+  pass. Neither the text nor its digest reaches the logs, `/info` or `/metrics`, and a decision answered from the
+  cache is not captured. The decision line gains `cache` (`hit`, `shared`, `miss`), the `ready` line `cache_ttl_s`
+  and `cache_max_entries`, `/info` `cache`, and `/metrics` `tantive_cache_hits_total`, `tantive_cache_misses_total`,
+  `tantive_cache_evictions_total` and `tantive_cache_entries`. About 7 MiB at 10 000 entries.
+- **No more 413 on the text**: a text over 50 000 characters, or a LiteLLM state whose quoted context exceeds it, is
+  classified on what the model reads instead of refused. The body stays capped (413), now by `S1D1_MAX_BODY_BYTES`
+  (2 MiB by default, 64 KiB to 32 MiB). Batch items follow the same rule.
+- New `S1D1_MAX_INPUT_TOKENS`, a soft input limit in tokens passed to the model (CLS and SEP included): empty keeps
+  the window (the default, unchanged), an integer of 128 or more caps it (`input_limit_capped` when the policy cannot
+  pass that much), `auto` keeps the largest multiple of 64 whose predicted cost fits in half of `S1D1_DEADLINE_MS`,
+  computed once after warm-up, so an idle replica no longer sheds long prompts. Under `chunks` the limit counts every
+  piece. The `ready` line gains `max_input_tokens`, `max_input_tokens_source`, `predicted_ms_limit` and
+  `max_body_bytes`, and the `capacity_warning` is about the limit in effect; `/info` gains `max_input_tokens` and
+  `max_body_bytes`; `/metrics` gains `tantive_max_input_tokens` and `tantive_truncated_requests_total`; the decision
+  line gains `input_chars` (the length of the classified text, never the text).
+- Only the part of a prompt the long-prompt policy can keep is tokenised: the text is cut at 8 characters per kept
+  token before the tokenizer sees it, then cut exactly on tokens as before. A 2 MiB text is tokenised in about 1 ms
+  instead of 300 ms on an Apple M4 Max (8 ms under `chunks`, which keeps up to 8 windows), whatever the size received.
+  On real text the kept tokens are unchanged (tested on a six-language corpus against 0.8.1's outputs and on random
+  texts with long words); a text of more than 8 characters per token (runs of newlines or separators) keeps fewer
+  tokens than before, still with `truncated`. The 50 000-character limit on the text is unchanged. New histogram
+  `tantive_tokenize_seconds`.
 - docs: `docs/use-cases.md` section 7, a savings illustration for tier routing with assumed traffic and prices,
   labelled as an extrapolation, not a measurement.
 - docs: the LiteLLM recipe uses the generic route (a `hosted_vllm` deployment named by `deployment_name`, tested with

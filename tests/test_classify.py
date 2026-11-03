@@ -45,8 +45,8 @@ async def test_classify_list_answers_per_input(client):
     assert [d["index"] for d in data] == [0, 1, 2, 3]
     assert data[0]["label"] == data[3]["label"] == "MEDIUM"
     assert data[1] == {"index": 1, "error": {"message": "no text to classify", "type": "invalid_request_error"}}
-    assert data[2]["error"]["type"] == "request_too_large"
-    assert r.json()["usage"]["pieces"] == 2  # the inputs that ran
+    assert data[2]["label"] == "MEDIUM"  # a long text is cut, not refused
+    assert r.json()["usage"]["pieces"] == 3  # the inputs that ran
 
 
 async def test_classify_every_input_failed_is_422(client):

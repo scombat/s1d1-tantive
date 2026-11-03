@@ -8,10 +8,11 @@
 - Formats: `systemone` for LiteLLM 1.106+ (Auto Router, `oss_classifier`, provider `laya`), `chat` for older LiteLLM, `decisions` for OpenAI Decisions clients, `classify` or `predict` for other clients (`S1D1_FORMATS`).
 - Target: Azure, AWS, Cloud Run, Heroku, Render or a Hugging Face Space under `deploy/`; Docker anywhere else.
 - Replicas: 3 at least; `1000 / cost_ms` requests per second each, with `cost_ms = fixed_ms + per_token_ms × tokens`.
-- Deadline: `S1D1_DEADLINE_MS` below the LiteLLM classifier timeout (1000 ms), above the cost of a 1 024-token prompt.
+- Deadline: `S1D1_DEADLINE_MS` below the LiteLLM classifier timeout (1000 ms), above the cost of a 1 024-token prompt; on a small CPU, `S1D1_MAX_INPUT_TOKENS=auto` keeps what fits in half the deadline (long texts are cut, never refused).
+- Agents: `S1D1_CACHE_TTL_S=300` answers a repeated text from memory, without a pass (off by default; tiers are computed again on every request).
 - Long prompts: keep `head_tail`; `chunks` costs about 2.3 passes per long prompt for no measured gain.
 - Tiers: LiteLLM's four (`SIMPLE`, `MEDIUM`, `COMPLEX`, `REASONING`) are always recognised; other routers' names go in `S1D1_TIERS`. LiteLLM fallback: `classifier_fallback: default_model`.
-- Check: LiteLLM's `test_routing`, then the `ready` line of the logs (`predicted_ms_1024`, `capacity_warning`).
+- Check: LiteLLM's `test_routing`, then the `ready` line of the logs (`max_input_tokens`, `predicted_ms_limit`, `capacity_warning`).
 - The calculation and two worked examples: [sizing](docs/sizing.md). Six full configurations: [use cases](docs/use-cases.md).
 
 ## Guides
