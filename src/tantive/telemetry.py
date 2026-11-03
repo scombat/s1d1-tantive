@@ -78,6 +78,17 @@ class Metrics:
             description="Tokens passed to the model at most (S1D1_MAX_INPUT_TOKENS resolved; `source`: window, user, "
             "auto)",
         )
+        self._cache_hits = meter.create_counter(
+            "tantive_cache_hits",
+            description="Decisions answered by the cache (`source`: stored, or in_flight for a pass already running)",
+        )
+        self._cache_misses = meter.create_counter(
+            "tantive_cache_misses", description="Passes started while the cache is on"
+        )
+        self._cache_evictions = meter.create_counter(
+            "tantive_cache_evictions", description="Entries that left the cache (`reason`: capacity or expired)"
+        )
+        self._cache_entries = meter.create_gauge("tantive_cache_entries", description="Entries in the cache")
         self._in_flight = meter.create_up_down_counter(
             "tantive_in_flight_requests", description="Decision requests accepted and not yet answered"
         )
@@ -140,6 +151,18 @@ class Metrics:
 
     def max_input_tokens(self, tokens: int, source: str) -> None:
         self._max_input_tokens.set(tokens, {"source": source})
+
+    def cache_hit(self, source: str) -> None:
+        self._cache_hits.add(1, {"source": source})
+
+    def cache_miss(self) -> None:
+        self._cache_misses.add(1)
+
+    def cache_evicted(self, reason: str) -> None:
+        self._cache_evictions.add(1, {"reason": reason})
+
+    def cache_entries(self, n: int) -> None:
+        self._cache_entries.set(n)
 
     @contextmanager
     def in_flight(self) -> Iterator[None]:
@@ -223,8 +246,10 @@ def log_decision(
     allowed: Sequence[str] | None,
     prompt: str | None,
     input_chars: int | None = None,
+    cache: str | None = None,
 ) -> None:
-    """The decision line; the length of the text always, the prompt itself only when S1D1_LOG_PROMPTS=1."""
+    """The decision line; the length of the text always, the prompt itself only when S1D1_LOG_PROMPTS=1, how the
+    cache answered (hit, shared, miss) only when it is on."""
     fields: dict[str, Any] = {
         "route": route,
         "format": fmt,
@@ -239,6 +264,8 @@ def log_decision(
         "latency_ms": round(latency_ms, 1),
         "allowed": list(allowed) if allowed is not None else None,
     }
+    if cache is not None:
+        fields["cache"] = cache
     if _log_prompts and prompt is not None:
         fields["prompt"] = prompt
     log_event("decision", **fields)

@@ -65,11 +65,12 @@ def check_count(items: Sequence[object], limit: int, what: str) -> None:
         raise ApiError(400, f"at most {limit} {what}s per request")
 
 
-async def classify(core: Core, text: str) -> tuple[Outputs, float]:
-    """One pass through the engine; Overloaded becomes 503 + Retry-After: 1 and counts in the metrics."""
+async def classify(core: Core, text: str) -> tuple[Outputs, float, str | None]:
+    """One pass through the engine, or the cache's answer (how it answered, None when it is off); Overloaded becomes
+    503 + Retry-After: 1 and counts in the metrics."""
     with metrics().in_flight():
         try:
-            return await core.engine.classify(text)
+            return await core.engine.classify_cached(text)
         except Overloaded as e:
             metrics().overloaded()
             raise ApiError(
@@ -84,13 +85,13 @@ class Classified:
     text: str
     outputs: Outputs
     latency_ms: float
+    cache: str | None = None  # hit, shared, miss; None when the cache is off
 
 
 async def classify_text(core: Core, raw: str, *, litellm_marker: bool = True) -> Classified:
     """The single route's path: a text to classify (400), then one pass through the engine (503)."""
     text = ask_of(raw, litellm_marker=litellm_marker)
-    outputs, latency_ms = await classify(core, text)
-    return Classified(text, outputs, latency_ms)
+    return Classified(text, *await classify(core, text))
 
 
 Item = Classified | ApiError  # a batch slot: the classified text, or what the single route would have answered
@@ -138,14 +139,17 @@ def record(
     latency_ms: float,
     allowed: Sequence[str] | None = None,
     prompt: str | None = None,
+    cache: str | None = None,
 ) -> str:
-    """The decision line and the metrics; returns the native tier of the score (what logs and metrics count)."""
+    """The decision line and the metrics; returns the native tier of the score (what logs and metrics count). A
+    decision the cache answered (hit or shared) is not offered to the capture: one per entry's life is enough."""
     tier = core.native.tier_for(outputs.complexity_score)
-    log_decision(route, fmt, outputs, tier, latency_ms, allowed, prompt, None if prompt is None else len(prompt))
+    input_chars = None if prompt is None else len(prompt)
+    log_decision(route, fmt, outputs, tier, latency_ms, allowed, prompt, input_chars, cache)
     metrics().record_request(route, fmt, latency_ms / 1000, tier, outputs.prompt_tokens)
     if outputs.truncated:
         metrics().truncated()
-    if core.capture is not None and prompt is not None:
+    if core.capture is not None and prompt is not None and cache in (None, "miss"):
         core.capture.offer(prompt, route, fmt, outputs, tier, latency_ms)
     return tier
 

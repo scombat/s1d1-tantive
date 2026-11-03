@@ -202,7 +202,7 @@ async def test_batch_503_mid_way_fills_that_slot(client, monkeypatch):
     from tantive.engine import Engine, Overloaded
 
     calls = []
-    original = Engine.classify
+    original = Engine.classify_cached
 
     async def second_call_overloaded(self, text):
         calls.append(text)
@@ -210,7 +210,7 @@ async def test_batch_503_mid_way_fills_that_slot(client, monkeypatch):
             raise Overloaded(999.0)
         return await original(self, text)
 
-    monkeypatch.setattr(Engine, "classify", second_call_overloaded)
+    monkeypatch.setattr(Engine, "classify_cached", second_call_overloaded)
     before = _decisions_total(await client.get("/metrics"))
     r = await client.post(
         "/v1/systemone/batch", json={"states": ["a", "b", "c"], "questions": tier_question("LOW", "HIGH")}

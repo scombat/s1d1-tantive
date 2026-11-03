@@ -251,3 +251,20 @@ def test_max_body_bytes_accepted(raw, value):
 def test_max_body_bytes_refused(bad):
     with pytest.raises(ConfigError, match="S1D1_MAX_BODY_BYTES"):
         Settings.from_env({"S1D1_MAX_BODY_BYTES": bad})
+
+
+def test_cache_is_off_by_default():
+    s = Settings.from_env({})
+    assert (s.cache_ttl_s, s.cache_max_entries) == (0, 10_000)
+
+
+def test_cache_settings_accepted():
+    s = Settings.from_env({"S1D1_CACHE_TTL_S": "300", "S1D1_CACHE_MAX_ENTRIES": "500"})
+    assert (s.cache_ttl_s, s.cache_max_entries) == (300, 500)
+
+
+@pytest.mark.parametrize(("name", "bad"), [("S1D1_CACHE_TTL_S", "-1"), ("S1D1_CACHE_TTL_S", "5m"),
+                                           ("S1D1_CACHE_MAX_ENTRIES", "0"), ("S1D1_CACHE_MAX_ENTRIES", "abc")])
+def test_cache_settings_refused(name, bad):
+    with pytest.raises(ConfigError, match=name):
+        Settings.from_env({name: bad})

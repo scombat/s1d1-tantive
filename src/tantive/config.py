@@ -73,6 +73,8 @@ class Settings:
     terms_version: str = "v1"
     max_input_tokens: int | Literal["auto"] | None = None  # None: the window (resolved by the engine, docs/40 § 4)
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES
+    cache_ttl_s: int = 0  # 0: no cache (docs/40 § 6)
+    cache_max_entries: int = 10000
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Settings:
@@ -130,6 +132,8 @@ class Settings:
                 minimum=MAX_BODY_BYTES_RANGE[0],
                 maximum=MAX_BODY_BYTES_RANGE[1],
             ),
+            cache_ttl_s=_int(env, "S1D1_CACHE_TTL_S", default=0, minimum=0),
+            cache_max_entries=_int(env, "S1D1_CACHE_MAX_ENTRIES", default=10000, minimum=1),
         )
 
 

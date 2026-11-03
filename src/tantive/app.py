@@ -15,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tantive import service
 from tantive.adapters import ADAPTERS
+from tantive.cache import Cache
 from tantive.capture import Capture
 from tantive.config import ConfigError, Settings, cpu_count_from_cgroup
 from tantive.engine import Engine
@@ -118,6 +119,8 @@ def log_ready(settings: Settings, info: ModelInfo, engine: Engine) -> None:
         max_input_tokens_source=limit.source if limit else None,
         predicted_ms_limit=round(limit.predicted_ms) if limit else None,
         max_body_bytes=settings.max_body_bytes,
+        cache_ttl_s=settings.cache_ttl_s,
+        cache_max_entries=settings.cache_max_entries,
     )
     if limit is None:
         return
@@ -166,6 +169,7 @@ def create_app(settings: Settings, model: Model) -> FastAPI:
         max_queue=settings.max_queue,
         policy=LongPromptPolicy.from_settings(settings, window=model.info.max_length),
         max_input_tokens=settings.max_input_tokens,
+        cache=Cache(settings.cache_ttl_s, settings.cache_max_entries) if settings.cache_ttl_s > 0 else None,
     )
     # sigma comes with the weights; S1D1_DEFAULT_SIGMA applies only when variant.json carries none
     info = (

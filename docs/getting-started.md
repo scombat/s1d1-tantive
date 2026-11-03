@@ -56,6 +56,7 @@ curl -s localhost:8788/info
 | `sigma`, `sigma_source` | the width of the tier probabilities, from `variant.json` or the default |
 | `max_length`, `long_prompts`, `chunks` | the token window (1 024), the policy for longer prompts and the `chunks` settings |
 | `deadline_ms`, `max_queue` | when a request is shed with a 503 |
+| `max_input_tokens`, `max_body_bytes`, `cache` | the input limit in effect, the largest body, the cache settings |
 | `threads`, `inter_op_threads`, `cost` | ONNX Runtime threads and the fitted cost per request and per token |
 
 ## First call on each format

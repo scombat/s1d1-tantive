@@ -22,7 +22,9 @@ you (last sections), or the opt-in sender posts them to the community ingestion.
 One file per UTC day, `capture-2026-10-21.jsonl`, then `capture-2026-10-21-001.jsonl` and so on when a file reaches
 `S1D1_CAPTURE_MAX_MB`; a restart appends to the last file of the day. A single thread writes (append, flush after each
 line), never the request. `/metrics` counts `tantive_capture_written_total` and `tantive_capture_dropped_total`;
-`/info` reports `capture` (`enabled`, `dir`, `sample`, `min_margin`, `retention_days`, and `send`, below).
+`/info` reports `capture` (`enabled`, `dir`, `sample`, `min_margin`, `retention_days`, and `send`, below). With the
+cache on (`S1D1_CACHE_TTL_S`), a decision answered from the cache, or shared with an identical request in flight, is
+not captured: a text an agent sends ten times is kept once per lifetime of its entry.
 
 ## One line
 
