@@ -35,7 +35,7 @@ even with the queue full ([configuration.md](configuration.md#the-cache)).
 - Image: `small` (8 replicas at 1 vCPU, see [sizing.md](sizing.md#example-2-api-at-100-reqs)). Target: [AWS](../deploy/aws/README.md) or [Google Cloud Run](../deploy/gcp/README.md) behind a load balancer.
 
 ```bash
-S1D1_FORMATS=decisions
+S1D1_FORMATS=systemone
 S1D1_THREADS=1
 S1D1_LONG_PROMPTS=head_tail
 S1D1_DEADLINE_MS=600
@@ -45,7 +45,8 @@ OTEL_EXPORTER_OTLP_ENDPOINT=<your collector>
 ```
 
 Why: one thread per 1-vCPU replica keeps the cost model honest, and a short deadline and queue shed load early so
-the balancer retries on another replica. Mount only the format you use. Next: [configuration.md](configuration.md).
+the balancer retries on another replica. Mount only the format you use: `systemone` for LiteLLM 1.106+, `decisions`
+for a decision client. Next: [configuration.md](configuration.md).
 
 ## 3. Homelab on a Mac (arm64), behind llama-swap or alone
 
@@ -54,14 +55,17 @@ the balancer retries on another replica. Mount only the format you use. Next: [c
 - Image: `full` (the arm64 image runs natively, no emulation). Target: `docker run` or `compose.yaml`.
 
 ```bash
-S1D1_FORMATS=decisions,chat,classify
+S1D1_FORMATS=systemone,decisions,chat,classify
 S1D1_THREADS=4
-S1D1_DEADLINE_MS=1500
+S1D1_DEADLINE_MS=800
 ```
 
 Why: a Mac core is two to three times faster than a cloud vCPU, so `full` costs about 35 ms at 150 tokens and one
 replica carries the load. `chat` lets llama-swap or any OpenAI-style client address the service as a model
-(`s1d1-classifier`); stand-alone, LiteLLM uses `decisions`. Next: [getting-started.md](getting-started.md).
+(`s1d1-classifier`); stand-alone, LiteLLM 1.106+ calls `systemone` (`oss_classifier`, [litellm.md](litellm.md)). The
+deadline stays under LiteLLM's `timeout_ms` (1000): a request that waited longer would time out there and open its
+circuit breaker for 30 seconds ([sizing.md](sizing.md#3-the-deadline)); a full window costs `full` about 200 ms on
+a Mac. Next: [getting-started.md](getting-started.md).
 
 ## 4. Free demo on Render or a Hugging Face Space
 
@@ -78,7 +82,9 @@ S1D1_API_KEY=<secret>
 ```
 
 Why: free tiers give a fraction of a vCPU, so the deadline is generous and the queue short; a public demo should
-carry a key. Cold starts sleep the service: expect the first call after a pause to wait for `/ready`.
+carry a key. Behind LiteLLM, keep the deadline under its `timeout_ms` instead and set
+`S1D1_MAX_INPUT_TOKENS=auto` ([sizing.md](sizing.md#3-the-deadline)). Cold starts sleep the service: expect the
+first call after a pause to wait for `/ready`.
 Next: [getting-started.md](getting-started.md).
 
 ## 5. Closed network, no internet access
