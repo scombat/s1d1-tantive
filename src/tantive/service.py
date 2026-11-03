@@ -69,6 +69,7 @@ def router(
                 "predicted_ms": round(limit.predicted_ms, 2),
             },
             "max_body_bytes": settings.max_body_bytes,
+            "cache": {"ttl_s": settings.cache_ttl_s, "max_entries": settings.cache_max_entries},
             "deadline_ms": settings.deadline_ms,
             "max_queue": settings.max_queue,
             "threads": settings.threads,

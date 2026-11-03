@@ -99,9 +99,9 @@ def router(_app: FastAPI) -> APIRouter:
                 raise ApiError(400, f"tier set {allowed} is not known: set S1D1_TIERS to declare it")
             full, present, spelling = resolved
         text = ask_of(last_user_text(body.messages))
-        outputs, latency_ms = await classify(core, text)
+        outputs, latency_ms, cache = await classify(core, text)
         tier, _ = choose(outputs.complexity_score, core.info.sigma, full, present)
-        record(core, ROUTE, FORMAT, outputs, latency_ms, allowed=allowed, prompt=text)
+        record(core, ROUTE, FORMAT, outputs, latency_ms, allowed=allowed, prompt=text, cache=cache)
         headers = {
             "X-S1D1-Score": str(outputs.complexity_score),
             "X-S1D1-Task": outputs.task,

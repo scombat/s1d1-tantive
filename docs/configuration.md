@@ -22,6 +22,7 @@ names it.
 | `S1D1_MAX_INPUT_TOKENS` | empty | tokens passed to the model at most, CLS and SEP included: empty for the window (as before), an integer of 128 or more, or `auto` (below); the rest of a longer text is ignored, never refused |
 | `S1D1_DEADLINE_MS`, `S1D1_MAX_QUEUE` | 800, 32 | shed a request (503 + `Retry-After: 1`) when its expected wait exceeds the deadline or the queue is full |
 | `S1D1_MAX_BODY_BYTES` | 2 097 152 (2 MiB) | largest request body, 65 536 to 33 554 432; a larger body is answered 413 |
+| `S1D1_CACHE_TTL_S`, `S1D1_CACHE_MAX_ENTRIES` | 0, 10 000 | keep the model's outputs for each text in memory for that many seconds, at most that many entries; 0 turns the cache off (below) |
 | `S1D1_API_KEY` | none | when set, adapter routes need `Authorization: Bearer <key>` (or `x-api-key`) |
 | `S1D1_LOG_PROMPTS` | 0 | 1 to write the classified text in the decision log line |
 | `S1D1_CAPTURE_DIR`, `S1D1_CAPTURE_SAMPLE`, `S1D1_CAPTURE_MIN_MARGIN`, `S1D1_CAPTURE_MAX_MB`, `S1D1_CAPTURE_RETENTION_DAYS`, `S1D1_CAPTURE_QUEUE` | none, 1.0, empty, 100, empty, 10000 | keep the classified prompts in JSONL files, off unless the folder is set ([capture.md](capture.md)) |
@@ -78,6 +79,35 @@ A larger `S1D1_MAX_BODY_BYTES` costs little CPU (the extraction, the cut and the
 body is held in memory and parsed, several times its size, for each request in flight: keep it well under the memory
 of the image (512 MiB for `tiny`).
 
+## The cache
+
+Agents send the same text again and again: a loop re-sends the user's turn with every tool call. With
+`S1D1_CACHE_TTL_S` above 0 (300 for agent traffic), the service keeps the model's outputs for each classified text in
+memory and answers a repeat without a pass. The cache is off by default.
+
+- **The key** is a SHA-256 of the text as extracted (after LiteLLM's last marker, before the cut, without
+  normalisation: two texts that differ by a space are two entries) and of what the outputs depend on: the service
+  version, the weights, `S1D1_LONG_PROMPTS`, the input limit in effect and, under `chunks`, its settings.
+- **The value** is the model's outputs, never a tier: tiers are computed again on every request, so another
+  `S1D1_TIERS`, other options in a question or another LiteLLM schema answer correctly from the same entry. A response
+  from the cache is the response a new pass gives, except `latency_ms`.
+- **Lifetime.** An entry lives `S1D1_CACHE_TTL_S` seconds from its pass; reading it does not extend it. Beyond
+  `S1D1_CACHE_MAX_ENTRIES` the oldest entry leaves first. About 650 bytes per entry: 7 MiB at 10 000 entries.
+- **Before the queue.** The cache answers before the tokenisation and the admission, so a stored entry answers 200
+  even with the queue full. Identical requests that arrive while the first one's pass runs wait for that pass instead
+  of entering the queue, and get its answer (or its error); a client that leaves does not stop the pass for the
+  others. A shed request (503) leaves nothing behind: the next identical one tries again.
+- **Privacy.** Neither the text nor its digest is kept anywhere else or written to a log, a metric or `/info` (the
+  digest of a short prompt can be found back by dictionary); the entries are lost on restart. `S1D1_LOG_PROMPTS=1`
+  keeps its effect. A decision answered from the cache is not captured again ([capture.md](capture.md)).
+
+The decision line gains `cache`: `hit` (a stored entry), `shared` (the pass of an identical request in flight) or
+`miss` (a new pass), absent when the cache is off. `/info` reports `cache` (`ttl_s`, `max_entries`), and `/metrics`
+`tantive_cache_hits_total` (by `source`: `stored` or `in_flight`), `tantive_cache_misses_total` (passes started),
+`tantive_cache_evictions_total` (by `reason`: `capacity` or `expired`) and the gauge `tantive_cache_entries`. A decision
+answered from the cache still counts in `tantive_decisions_total`, `tantive_request_latency_seconds` and
+`tantive_prompt_tokens`, with its own (near zero) latency: to size the passes, subtract the hits.
+
 ## Tier names
 
 `S1D1_TIERS` sets the names and upper bounds of the native tiers (a score up to a bound belongs to that tier; the
@@ -112,6 +142,7 @@ The JSON line `{"event": "ready", ...}` printed after warm-up reports:
 | `predicted_ms_1024` | the cost of a full-window prompt |
 | `max_input_tokens`, `max_input_tokens_source`, `predicted_ms_limit` | the input limit in effect, where it comes from (`window`, `user`, `auto`) and the cost of a text that fills it |
 | `max_body_bytes` | the largest request body |
+| `cache_ttl_s`, `cache_max_entries` | the cache settings (0: off) |
 | `sustainable_rps` | requests per second for a typical 64-token prompt, one replica |
 
 If `predicted_ms_limit` exceeds `S1D1_DEADLINE_MS` (with the default limit: if `predicted_ms_1024` does), a
@@ -123,5 +154,6 @@ queue.
 
 `GET /metrics` exposes `tantive_decisions_total` (by tier), `tantive_request_latency_seconds` (queue included),
 `tantive_prompt_tokens`, `tantive_tokenize_seconds`, `tantive_truncated_requests_total` (decisions on a text of which
-some part was not passed), the gauge `tantive_max_input_tokens`, `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total` and the gauge `tantive_capture_send_pending_bytes`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
+some part was not passed), the gauge `tantive_max_input_tokens`, `tantive_in_flight_requests`, with the cache on the
+four `tantive_cache_*` series ([above](#the-cache)), and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total` and the gauge `tantive_capture_send_pending_bytes`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
 and traces over OTLP; `/health`, `/ready` and `/metrics` are not traced. Logs are JSON lines on standard output.

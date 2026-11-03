@@ -139,7 +139,7 @@ def respond(core: Core, c: Classified, questions: dict[str, Question], min_confi
 
 
 def record_state(core: Core, c: Classified) -> None:
-    record(core, ROUTE, FORMAT, c.outputs, c.latency_ms, prompt=c.text)
+    record(core, ROUTE, FORMAT, c.outputs, c.latency_ms, prompt=c.text, cache=c.cache)
 
 
 def parse_questions(raw: dict[str, SystemOneQuestion]) -> dict[str, Question]:

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- New in-memory cache of the model's outputs, off by default: `S1D1_CACHE_TTL_S` (seconds, 300 recommended for agent
+  traffic) and `S1D1_CACHE_MAX_ENTRIES` (10 000, the oldest entry leaves first). The key is a SHA-256 of the extracted
+  text and of the settings the outputs depend on; tiers are computed again on every request. A stored entry answers
+  before the tokenisation and the admission, even with the queue full, and identical requests in flight share one
+  pass. Neither the text nor its digest reaches the logs, `/info` or `/metrics`, and a decision answered from the
+  cache is not captured. The decision line gains `cache` (`hit`, `shared`, `miss`), the `ready` line `cache_ttl_s`
+  and `cache_max_entries`, `/info` `cache`, and `/metrics` `tantive_cache_hits_total`, `tantive_cache_misses_total`,
+  `tantive_cache_evictions_total` and `tantive_cache_entries`. About 7 MiB at 10 000 entries.
 - **No more 413 on the text**: a text over 50 000 characters, or a LiteLLM state whose quoted context exceeds it, is
   classified on what the model reads instead of refused. The body stays capped (413), now by `S1D1_MAX_BODY_BYTES`
   (2 MiB by default, 64 KiB to 32 MiB). Batch items follow the same rule.
