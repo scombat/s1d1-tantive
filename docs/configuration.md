@@ -104,7 +104,9 @@ memory and answers a repeat without a pass. The cache is off by default.
 The decision line gains `cache`: `hit` (a stored entry), `shared` (the pass of an identical request in flight) or
 `miss` (a new pass), absent when the cache is off. `/info` reports `cache` (`ttl_s`, `max_entries`), and `/metrics`
 `tantive_cache_hits_total` (by `source`: `stored` or `in_flight`), `tantive_cache_misses_total` (passes started),
-`tantive_cache_evictions_total` (by `reason`: `capacity` or `expired`) and the gauge `tantive_cache_entries`.
+`tantive_cache_evictions_total` (by `reason`: `capacity` or `expired`) and the gauge `tantive_cache_entries`. A decision
+answered from the cache still counts in `tantive_decisions_total`, `tantive_request_latency_seconds` and
+`tantive_prompt_tokens`, with its own (near zero) latency: to size the passes, subtract the hits.
 
 ## Tier names
 

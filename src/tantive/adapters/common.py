@@ -91,7 +91,8 @@ class Classified:
 async def classify_text(core: Core, raw: str, *, litellm_marker: bool = True) -> Classified:
     """The single route's path: a text to classify (400), then one pass through the engine (503)."""
     text = ask_of(raw, litellm_marker=litellm_marker)
-    return Classified(text, *await classify(core, text))
+    outputs, latency_ms, cache = await classify(core, text)
+    return Classified(text, outputs, latency_ms, cache)
 
 
 Item = Classified | ApiError  # a batch slot: the classified text, or what the single route would have answered

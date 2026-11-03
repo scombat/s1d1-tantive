@@ -18,6 +18,7 @@ from tantive.model import Outputs
 from tantive.telemetry import configure_logging
 from tests.conftest import _client, outputs
 
+TIERS = [{"value": "LOW"}, {"value": "HIGH"}]
 QUESTION = {"tier": {"type": "choice", "criteria": {"LOW": "", "HIGH": ""}}}
 
 
@@ -328,6 +329,25 @@ async def test_a_hit_or_a_shared_answer_is_not_captured(slow_fake, settings_fact
         await c.post("/classify", json={"input": "same"})  # a hit
         await c.post("/classify", json={"input": "other"})  # a miss
     assert offered == ["same", "other"]
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/v1/decisions", {"input": "same", "questions": [{"type": "choice", "name": "tier", "choices": TIERS}]}),
+        ("/v1/chat/completions", {"messages": [{"role": "user", "content": "same"}]}),
+        ("/predict", {"inputs": "same"}),
+    ],
+)
+async def test_every_route_skips_the_capture_on_a_hit(fake_model, settings_factory, tmp_path, monkeypatch, path, body):
+    env = {"S1D1_CAPTURE_DIR": str(tmp_path), "S1D1_FORMATS": "decisions,chat,predict"}
+    app = create_app(cached_settings(settings_factory, **env), fake_model)
+    offered = []
+    async for c in _client(app):
+        monkeypatch.setattr(app.state.capture, "offer", lambda prompt, *a: offered.append(prompt))
+        for _ in range(2):
+            assert (await c.post(path, json=body)).status_code == 200
+    assert offered == ["same"]
 
 
 async def test_cache_off_creates_nothing(client, capsys):
