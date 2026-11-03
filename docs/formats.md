@@ -118,13 +118,14 @@ otherwise. Invalid JSON, too many items, an oversized body or an unknown questio
 
 ## Limits and error codes
 
-Body 2 MiB, text 50 000 characters, 32 inputs per batch route, 64 questions (128 for Decisions).
+Body 2 MiB (`S1D1_MAX_BODY_BYTES`), 32 inputs per batch route, 64 questions (128 for Decisions). The text has no
+size limit: a long one is cut to what the model reads (`S1D1_MAX_INPUT_TOKENS`) and reports `truncated`.
 
 | code | meaning |
 |---|---|
 | 400 | invalid body |
 | 401 | `S1D1_API_KEY` is set and the request carries no matching `Authorization: Bearer` or `x-api-key` |
 | 404 | the format is not mounted |
-| 413 | body or text too large |
+| 413 | body larger than `S1D1_MAX_BODY_BYTES` (2 MiB by default) |
 | 422 | question outside the catalogue; every item of a batch failed |
 | 503 | shed: the service is overloaded; retry (`Retry-After: 1`) |

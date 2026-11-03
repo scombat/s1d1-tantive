@@ -70,6 +70,14 @@ class Metrics:
             description="Time to tokenise the text of a request (only the part the long-prompt policy can keep)",
             explicit_bucket_boundaries_advisory=TOKENIZE_BUCKETS,
         )
+        self._truncated = meter.create_counter(
+            "tantive_truncated_requests", description="Decisions on a text of which some part was not passed"
+        )
+        self._max_input_tokens = meter.create_gauge(
+            "tantive_max_input_tokens",
+            description="Tokens passed to the model at most (S1D1_MAX_INPUT_TOKENS resolved; `source`: window, user, "
+            "auto)",
+        )
         self._in_flight = meter.create_up_down_counter(
             "tantive_in_flight_requests", description="Decision requests accepted and not yet answered"
         )
@@ -126,6 +134,12 @@ class Metrics:
 
     def tokenized(self, seconds: float) -> None:
         self._tokenize.record(seconds)
+
+    def truncated(self) -> None:
+        self._truncated.add(1)
+
+    def max_input_tokens(self, tokens: int, source: str) -> None:
+        self._max_input_tokens.set(tokens, {"source": source})
 
     @contextmanager
     def in_flight(self) -> Iterator[None]:
@@ -208,8 +222,9 @@ def log_decision(
     latency_ms: float,
     allowed: Sequence[str] | None,
     prompt: str | None,
+    input_chars: int | None = None,
 ) -> None:
-    """The decision line; the prompt only when S1D1_LOG_PROMPTS=1."""
+    """The decision line; the length of the text always, the prompt itself only when S1D1_LOG_PROMPTS=1."""
     fields: dict[str, Any] = {
         "route": route,
         "format": fmt,
@@ -220,6 +235,7 @@ def log_decision(
         "tokens": outputs.prompt_tokens,
         "truncated": outputs.truncated,
         "pieces": outputs.pieces,
+        "input_chars": input_chars,
         "latency_ms": round(latency_ms, 1),
         "allowed": list(allowed) if allowed is not None else None,
     }

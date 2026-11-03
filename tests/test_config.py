@@ -223,3 +223,31 @@ def test_capture_url_with_a_query_or_a_fragment_is_refused_and_not_echoed(tmp_pa
     with pytest.raises(ConfigError, match="S1D1_CAPTURE_URL") as e:
         Settings.from_env(env)
     assert "SECRET" not in str(e.value) and "host.example" not in str(e.value)
+
+
+@pytest.mark.parametrize(("raw", "value"), [("", None), (" ", None), ("512", 512), ("128", 128), ("auto", "auto")])
+def test_max_input_tokens_accepted(raw, value):
+    assert Settings.from_env({"S1D1_MAX_INPUT_TOKENS": raw}).max_input_tokens == value
+
+
+def test_max_input_tokens_default_is_empty():
+    assert Settings.from_env({}).max_input_tokens is None
+
+
+@pytest.mark.parametrize("bad", ["abc", "0", "64", "127", "-1", "1.5"])
+def test_max_input_tokens_refused(bad):
+    with pytest.raises(ConfigError, match="S1D1_MAX_INPUT_TOKENS"):
+        Settings.from_env({"S1D1_MAX_INPUT_TOKENS": bad})
+
+
+@pytest.mark.parametrize(
+    ("raw", "value"), [("", 2_097_152), ("4194304", 4_194_304), ("65536", 65_536), ("33554432", 33_554_432)]
+)
+def test_max_body_bytes_accepted(raw, value):
+    assert Settings.from_env({"S1D1_MAX_BODY_BYTES": raw}).max_body_bytes == value
+
+
+@pytest.mark.parametrize("bad", ["abc", "2M", "65535", "33554433", "-1"])
+def test_max_body_bytes_refused(bad):
+    with pytest.raises(ConfigError, match="S1D1_MAX_BODY_BYTES"):
+        Settings.from_env({"S1D1_MAX_BODY_BYTES": bad})

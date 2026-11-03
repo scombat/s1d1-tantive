@@ -21,6 +21,11 @@ Why: `small` is plenty for a pilot, and three replicas survive a rolling update.
 classifier timeout in LiteLLM, so an overloaded replica answers 503 and the request falls back at once.
 Next: [litellm.md](litellm.md).
 
+Agents send long messages. If the `ready` line shows a `capacity_warning` (a full window costs more than the
+deadline on this CPU), long prompts are shed even on an idle replica and go to the fallback: start one day with
+`S1D1_MAX_INPUT_TOKENS=auto`, read `max_input_tokens` in the `ready` line, then set that integer. Long messages are then
+classified on their first and last tokens instead of falling back.
+
 ## 2. Internal API at high throughput
 
 *Around 100 classifications per second at peak, LiteLLM or a decision client in front.*

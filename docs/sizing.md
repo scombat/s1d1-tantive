@@ -48,9 +48,14 @@ sends many calls for one question costs one classification: count user turns, no
 
 - Keep it **below the classifier timeout in LiteLLM** (1000 ms recommended to start), minus the network round-trip:
   a fast 503 sends the request to the `classifier_fallback`, a timeout counts against LiteLLM's circuit breaker.
-- Keep it **above `predicted_ms_1024`** (the cost of a full-window prompt, in the `ready` line), or a
-  `capacity_warning` says those prompts will always be shed.
+- Keep it **above `predicted_ms_limit`** (the cost of a text that fills the input limit, in the `ready` line), or a
+  `capacity_warning` says those prompts will always be shed. With the default limit, the window, that is
+  `predicted_ms_1024`.
 - Cloud estimate of `predicted_ms_1024`: `(fixed_ms + per_token_ms × 1024) × 3`: `small` 327 ms, `full` 624 ms.
+- When the window does not fit (a small CPU, a short deadline), set `S1D1_MAX_INPUT_TOKENS=auto`: the service keeps
+  the most tokens whose cost fits in half of the deadline (a multiple of 64, at least 128) and stops shedding long
+  prompts on an idle replica. Read the value in the `ready` line and set it as an integer in production. Estimates
+  for an 800 ms deadline: `small` on a cloud core keeps the window, `full` on a cloud core about 640 tokens.
 
 ## 4. Variant, CPU and GPU
 

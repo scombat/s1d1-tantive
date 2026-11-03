@@ -17,7 +17,6 @@ from tantive.questions import Catalogue, Question, UnknownQuestion
 from tantive.telemetry import log_decision, metrics
 from tantive.tiers import TierSet
 
-MAX_TEXT_CHARS = 50_000
 MAX_QUESTIONS = 64
 MAX_BATCH = 32
 
@@ -45,9 +44,8 @@ class Core:
 
 
 def ask_of(text: str, *, litellm_marker: bool = True) -> str:
-    """The text to classify, within the size limit: after LiteLLM's last marker when `litellm_marker`."""
-    if len(text) > MAX_TEXT_CHARS:
-        raise ApiError(413, f"text exceeds {MAX_TEXT_CHARS} characters")
+    """The text to classify: after LiteLLM's last marker when `litellm_marker`. Any length: the engine keeps what
+    the long-prompt policy and the input limit allow (only the body size is capped, by the app)."""
     try:
         return current_ask(text) if litellm_marker else _non_blank(text)
     except EmptyAsk as e:
@@ -89,7 +87,7 @@ class Classified:
 
 
 async def classify_text(core: Core, raw: str, *, litellm_marker: bool = True) -> Classified:
-    """The single route's path: the text within its limits (400, 413), then one pass through the engine (503)."""
+    """The single route's path: a text to classify (400), then one pass through the engine (503)."""
     text = ask_of(raw, litellm_marker=litellm_marker)
     outputs, latency_ms = await classify(core, text)
     return Classified(text, outputs, latency_ms)
@@ -100,7 +98,7 @@ Item = Classified | ApiError  # a batch slot: the classified text, or what the s
 
 async def classify_items(core: Core, raws: Sequence[str], *, litellm_marker: bool = True) -> list[Item]:
     """The batch routes, per item: each text takes the single route's path, and what that route would refuse (blank
-    or too long text, shed) takes the item's slot instead of failing the batch. Body-level checks come before."""
+    text, shed) takes the item's slot instead of failing the batch. Body-level checks come before."""
     items: list[Item] = []
     for raw in raws:
         try:
@@ -143,8 +141,10 @@ def record(
 ) -> str:
     """The decision line and the metrics; returns the native tier of the score (what logs and metrics count)."""
     tier = core.native.tier_for(outputs.complexity_score)
-    log_decision(route, fmt, outputs, tier, latency_ms, allowed, prompt)
+    log_decision(route, fmt, outputs, tier, latency_ms, allowed, prompt, None if prompt is None else len(prompt))
     metrics().record_request(route, fmt, latency_ms / 1000, tier, outputs.prompt_tokens)
+    if outputs.truncated:
+        metrics().truncated()
     if core.capture is not None and prompt is not None:
         core.capture.offer(prompt, route, fmt, outputs, tier, latency_ms)
     return tier

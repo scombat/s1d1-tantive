@@ -10,6 +10,8 @@ for needs_tools.
 
 Only what a policy can keep is tokenised (docs/40 § 5): `encode` cuts the text at CHARS_PER_TOKEN characters per
 kept token before the tokenizer sees it, so a 2 MiB body costs what a window costs. `split` then cuts the ids exactly.
+An input limit (S1D1_MAX_INPUT_TOKENS, docs/40 § 4) lowers what is kept: at most `limit` tokens passed to the model,
+CLS and SEP included, every piece counted under `chunks`.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ SCORE_STRATEGIES = ("max", "mean", "median", "first", "length_weighted")
 TASK_STRATEGIES = ("sum_logits", "vote")
 POLICIES = ("head", "tail", "head_tail", "chunks")
 CHARS_PER_TOKEN = 8  # the cut's margin: real text runs 1.5 to 3 characters per token with this tokenizer
+MIN_TOKENS = 128  # the floor of S1D1_MAX_INPUT_TOKENS and of S1D1_CHUNK_TOKENS: no piece is run shorter by the limit
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,7 @@ class LongPromptPolicy:
     chunk_max: int = 8
     score: str = "max"
     task: str = "sum_logits"
+    max_input_tokens: int | None = None  # the effective input limit; None: what the policy can pass (`ceiling`)
 
     @classmethod
     def from_settings(cls, settings, window: int) -> LongPromptPolicy:
@@ -51,16 +55,27 @@ class LongPromptPolicy:
         )
 
     @property
-    def useful(self) -> int:
-        """Ids a piece can hold besides CLS and SEP."""
-        return self.window - 2
-
-    @property
-    def limit(self) -> int:
-        """Tokens passed to the model at most, CLS and SEP included: the window, or every piece under `chunks`."""
+    def ceiling(self) -> int:
+        """Tokens the policy can pass at most, CLS and SEP included: the window, or every piece under `chunks`."""
         if self.name == "chunks":
             return self.chunk_max * min(self.chunk_tokens, self.window)
         return self.window
+
+    @property
+    def limit(self) -> int:
+        """Tokens passed to the model at most: the input limit when there is one, else the ceiling."""
+        return self.ceiling if self.max_input_tokens is None else self.max_input_tokens
+
+    def piece_lengths(self, tokens: int) -> list[int]:
+        """The pieces' lengths, CLS and SEP included, of a text long enough to pass `tokens`: one piece, or under
+        `chunks` full pieces then one shortened to the room left, none run under MIN_TOKENS (what `split` does)."""
+        if self.name != "chunks":
+            return [min(tokens, self.window)]
+        piece, lengths, room = min(self.chunk_tokens, self.window), [], tokens
+        while room >= MIN_TOKENS and len(lengths) < self.chunk_max:
+            lengths.append(min(piece, room))
+            room -= lengths[-1]
+        return lengths
 
 
 def encode(model: Model, text: str, policy: LongPromptPolicy) -> Encoded:
@@ -87,10 +102,11 @@ def split(encoded: Encoded, policy: LongPromptPolicy) -> tuple[list[Encoded], bo
     """The pieces to run for one encoded text and whether some of its tokens are in none of them (or the text was cut
     before tokenisation). Each piece carries that flag, so a lone piece reports it through the model's own outputs."""
     ids = encoded.ids
-    if len(ids) <= policy.window:
+    limit = min(policy.limit, policy.window)
+    if len(ids) <= limit:
         return [encoded], encoded.truncated
     bos, eos, body = ids[0], ids[-1], ids[1:-1]
-    useful = policy.useful
+    useful = limit - 2
     if policy.name == "head":
         parts, truncated = [body[:useful]], True
     elif policy.name == "tail":
@@ -103,14 +119,18 @@ def split(encoded: Encoded, policy: LongPromptPolicy) -> tuple[list[Encoded], bo
         stride = size - policy.overlap
         if stride < 1:
             raise ValueError("overlap must be smaller than the piece size")
-        parts, truncated = [], False
-        for start in range(0, len(body), stride):
-            parts.append(body[start : start + size])
-            if start + size >= len(body):
+        parts, start, room = [], 0, policy.limit  # room: tokens the limit still lets through (at least MIN_TOKENS)
+        while True:
+            part = body[start : start + min(size, room - 2)]  # the last one shortened to the room left
+            parts.append(part)
+            room -= len(part) + 2
+            if start + len(part) >= len(body):
+                truncated = False
                 break
-            if len(parts) == policy.chunk_max:
+            if len(parts) == policy.chunk_max or room < MIN_TOKENS:
                 truncated = True
                 break
+            start += stride
     else:
         raise ValueError(f"unknown long-prompt policy {policy.name!r}")
     truncated = truncated or encoded.truncated

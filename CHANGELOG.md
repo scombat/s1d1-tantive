@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **No more 413 on the text**: a text over 50 000 characters, or a LiteLLM state whose quoted context exceeds it, is
+  classified on what the model reads instead of refused. The body stays capped (413), now by `S1D1_MAX_BODY_BYTES`
+  (2 MiB by default, 64 KiB to 32 MiB). Batch items follow the same rule.
+- New `S1D1_MAX_INPUT_TOKENS`, a soft input limit in tokens passed to the model (CLS and SEP included): empty keeps
+  the window (the default, unchanged), an integer of 128 or more caps it (`input_limit_capped` when the policy cannot
+  pass that much), `auto` keeps the largest multiple of 64 whose predicted cost fits in half of `S1D1_DEADLINE_MS`,
+  computed once after warm-up, so an idle replica no longer sheds long prompts. Under `chunks` the limit counts every
+  piece. The `ready` line gains `max_input_tokens`, `max_input_tokens_source`, `predicted_ms_limit` and
+  `max_body_bytes`, and the `capacity_warning` is about the limit in effect; `/info` gains `max_input_tokens` and
+  `max_body_bytes`; `/metrics` gains `tantive_max_input_tokens` and `tantive_truncated_requests_total`; the decision
+  line gains `input_chars` (the length of the classified text, never the text).
 - Only the part of a prompt the long-prompt policy can keep is tokenised: the text is cut at 8 characters per kept
   token before the tokenizer sees it, then cut exactly on tokens as before. A 2 MiB text is tokenised in about 1 ms
   instead of 300 ms on an Apple M4 Max (8 ms under `chunks`, which keeps up to 8 windows), whatever the size received.
