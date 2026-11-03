@@ -21,8 +21,9 @@ Do not restate the docs; read them and apply them.
    from `deploy/<target>/README.md` (copy it from there, do not invent flags). Use the image tag of the current
    release (see `CHANGELOG.md`), never `latest`. Leave secrets as `<secret>` placeholders.
 6. **Say what remains to verify**:
-   - `GET /ready` answers 200, and the `ready` log line: `predicted_ms_1024` below `S1D1_DEADLINE_MS`, no
-     `capacity_warning`, `sustainable_rps` consistent with the sizing.
+   - `GET /ready` answers 200, and the `ready` log line: `predicted_ms_limit` below `S1D1_DEADLINE_MS`
+     (`predicted_ms_1024` with the default limit; when it does not fit, `S1D1_MAX_INPUT_TOKENS=auto`, section 3 of
+     `docs/sizing.md`), no `capacity_warning`, `sustainable_rps` consistent with the sizing.
    - LiteLLM wiring in `docs/litellm.md`, then `test_routing` on a greeting, an ordinary task and a hard one: three
      different tiers.
    - Optionally the signature and weights, `docs/verify.md`.

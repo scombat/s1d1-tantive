@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.9.0 — 2026-11-03
+
+Upgrade recommended where long prompts end in LiteLLM's fallback (413 for their size, 503 for their cost).
+
 - New in-memory cache of the model's outputs, off by default: `S1D1_CACHE_TTL_S` (seconds, 300 recommended for agent
   traffic) and `S1D1_CACHE_MAX_ENTRIES` (10 000, the oldest entry leaves first). The key is a SHA-256 of the extracted
   text and of the settings the outputs depend on; tiers are computed again on every request. A stored entry answers
@@ -26,8 +30,7 @@
   instead of 300 ms on an Apple M4 Max (8 ms under `chunks`, which keeps up to 8 windows), whatever the size received.
   On real text the kept tokens are unchanged (tested on a six-language corpus against 0.8.1's outputs and on random
   texts with long words); a text of more than 8 characters per token (runs of newlines or separators) keeps fewer
-  tokens than before, still with `truncated`. The 50 000-character limit on the text is unchanged. New histogram
-  `tantive_tokenize_seconds`.
+  tokens than before, still with `truncated`. New histogram `tantive_tokenize_seconds`.
 - docs: `docs/use-cases.md` section 7, a savings illustration for tier routing with assumed traffic and prices,
   labelled as an extrapolation, not a measurement.
 - docs: the LiteLLM recipe uses the generic route (a `hosted_vllm` deployment named by `deployment_name`, tested with
@@ -37,6 +40,10 @@
   1.106 `config.yaml` block. The "Deploy on Hugging Face" button is removed until the Space exists; `deploy/huggingface/`
   is kept and marked "not published yet".
 - Pointers to private documents removed from the changelog and `docs/capture.md`.
+- Dependencies: onnxruntime 1.31.1, fastapi 0.162.0, pydantic 2.14.2, OpenTelemetry 1.45.2 and 0.66b2,
+  huggingface-hub 2.4.0; the image is built with uv 0.13.7.
+- Image references move to 0.9.0 in the README, the guides, the deployment templates, the Space files and the
+  issue templates.
 
 ## 0.8.1 — 2026-10-25
 

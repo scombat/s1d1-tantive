@@ -162,7 +162,7 @@ def router(_app: FastAPI) -> APIRouter:
 
     @r.post(ROUTE + "/batch")
     async def systemone_batch(request: Request, body: SystemOneBatchRequest) -> JSONResponse:
-        """Per state: a state the single route would refuse (400, 413, 503) gets an error in its slot. The answers
+        """Per state: a state the single route would refuse (400, 503) gets an error in its slot. The answers
         are built before anything is recorded, so a question outside the catalogue (422) still fails the body."""
         check_count(body.states, MAX_BATCH, "state")
         core, questions = Core.of(request), parse_questions(body.questions)
