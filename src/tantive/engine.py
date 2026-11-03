@@ -112,7 +112,8 @@ class Engine:
         if self._executor is None or self._cost is None:
             raise RuntimeError("engine not started")
         loop = asyncio.get_running_loop()
-        encoded = await loop.run_in_executor(self._tokenizer_executor, self._encode, text)
+        encoded, seconds = await loop.run_in_executor(self._tokenizer_executor, self._encode, text)
+        metrics().tokenized(seconds)  # on the loop, like every other series
         pieces, truncated = split(encoded, self.policy)
         own = self._cost.predict_pieces([len(p.ids) for p in pieces])
         expected = self.pending_cost_ms + own
@@ -130,11 +131,10 @@ class Engine:
                 self._pending_cost_ms = max(0.0, self._pending_cost_ms - own)
         return outputs, (time.perf_counter() - t0) * 1000
 
-    def _encode(self, text: str) -> Encoded:
+    def _encode(self, text: str) -> tuple[Encoded, float]:
         t0 = time.perf_counter()
         encoded = encode(self.model, text, self.policy)
-        metrics().tokenized(time.perf_counter() - t0)
-        return encoded
+        return encoded, time.perf_counter() - t0
 
     def _run_one(self, pieces: list[Encoded], truncated: bool, cost_ms: float) -> Outputs:
         with self._lock:
