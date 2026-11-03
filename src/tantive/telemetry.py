@@ -21,6 +21,7 @@ SERVICE_NAME = "s1d1-tantive"
 RESOURCE = Resource.create({"service.name": SERVICE_NAME, SERVICE_VERSION: __version__})
 LATENCY_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 0.8, 1.0, 2.0)
 TOKEN_BUCKETS = (16, 32, 64, 128, 256, 512, 768, 1024)
+TOKENIZE_BUCKETS = (0.0005, 0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5)
 
 
 def otlp_url(endpoint: str, signal: str) -> str | None:
@@ -62,6 +63,12 @@ class Metrics:
             "tantive_prompt_tokens",
             description="Tokens of the classified text",
             explicit_bucket_boundaries_advisory=TOKEN_BUCKETS,
+        )
+        self._tokenize = meter.create_histogram(
+            "tantive_tokenize",
+            unit="s",
+            description="Time to tokenise the text of a request (only the part the long-prompt policy can keep)",
+            explicit_bucket_boundaries_advisory=TOKENIZE_BUCKETS,
         )
         self._in_flight = meter.create_up_down_counter(
             "tantive_in_flight_requests", description="Decision requests accepted and not yet answered"
@@ -116,6 +123,9 @@ class Metrics:
 
     def overloaded(self) -> None:
         self._overloaded.add(1)
+
+    def tokenized(self, seconds: float) -> None:
+        self._tokenize.record(seconds)
 
     @contextmanager
     def in_flight(self) -> Iterator[None]:

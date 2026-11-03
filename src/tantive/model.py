@@ -82,7 +82,7 @@ class ModelInfo:
 class Encoded:
     """A tokenised text, ready for the session: the engine encodes once (off the event loop) and runs later.
     `Model.encode` returns every id of the text; the long-prompt policy cuts it into pieces of at most one window
-    (`truncated` is then true when some of the text is in no piece)."""
+    (`truncated` is then true when some of the text is in no piece, or was cut before tokenisation)."""
 
     text: str
     ids: np.ndarray

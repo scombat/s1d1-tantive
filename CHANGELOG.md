@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Only the part of a prompt the long-prompt policy can keep is tokenised: the text is cut at 8 characters per kept
+  token before the tokenizer sees it, then cut exactly on tokens as before. A 2 MiB text is tokenised in about 1 ms
+  instead of 300 ms on an Apple M4 Max (8 ms under `chunks`, which keeps up to 8 windows), whatever the size received.
+  On real text the kept tokens are unchanged (tested on a six-language corpus against 0.8.1's outputs and on random
+  texts with long words); a text of more than 8 characters per token (runs of newlines or separators) keeps fewer
+  tokens than before, still with `truncated`. The 50 000-character limit on the text is unchanged. New histogram
+  `tantive_tokenize_seconds`.
 - docs: `docs/use-cases.md` section 7, a savings illustration for tier routing with assumed traffic and prices,
   labelled as an extrapolation, not a measurement.
 - docs: the LiteLLM recipe uses the generic route (a `hosted_vllm` deployment named by `deployment_name`, tested with
