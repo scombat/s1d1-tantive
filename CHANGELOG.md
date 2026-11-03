@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- docs: `docs/use-cases.md` mounts `systemone` wherever LiteLLM 1.106+ is the client (sections 2 and 3: it called
+  `/v1/systemone` and got 404), and the Mac case keeps its deadline under LiteLLM's `timeout_ms` (800 instead of
+  1500 ms, which opened the circuit breaker); the free demo says to do the same behind LiteLLM.
+
 ## 0.9.0 — 2026-11-03
 
 Upgrade recommended where long prompts end in LiteLLM's fallback (413 for their size, 503 for their cost).
