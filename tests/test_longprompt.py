@@ -12,7 +12,7 @@ import pytest
 
 from tantive.config import ConfigError, Settings
 from tantive.engine import CostModel, Engine
-from tantive.longprompt import LongPromptPolicy, merge, split
+from tantive.longprompt import POLICIES, LongPromptPolicy, encode, merge, split
 from tantive.model import Encoded, Outputs
 from tantive.tasks import TASKS
 
@@ -334,3 +334,254 @@ def test_policy_from_settings():
     s = Settings.from_env({"S1D1_LONG_PROMPTS": "chunks", "S1D1_CHUNK_SCORE": "mean"})
     p = LongPromptPolicy.from_settings(s, window=1024)
     assert (p.name, p.score, p.task, p.chunk_max) == ("chunks", "mean", "sum_logits", 8)
+
+
+# --- the cut before tokenisation (docs/40 § 5): only what the policy can keep is tokenised ---------------------------
+
+SPANS = {  # characters tokenised at most, at 8 characters per kept token, with the window as the only limit
+    "head": 8 * USEFUL,
+    "tail": 8 * USEFUL,
+    "head_tail": 2 * 8 * (USEFUL // 2),
+    "chunks": 8 * 8 * WINDOW,  # chunk_max pieces of chunk_tokens, overlaps and CLS/SEP included
+}
+
+
+class CharModel:
+    """One token per character, CLS and SEP around: a cut on characters is a cut on tokens. `per_token` characters
+    make one token instead, for texts that need more characters per token than the margin assumes."""
+
+    def __init__(self, per_token: int = 1) -> None:
+        from tantive.model import ModelInfo
+
+        self.info = ModelInfo("fake", "0", 0.1, "default", "fake.onnx")
+        self.per_token = per_token
+        self.seen: list[str] = []
+
+    def encode(self, text: str) -> Encoded:
+        self.seen.append(text)
+        if self.per_token == 1:
+            body = [ord(c) for c in text]
+        else:
+            body = [ord(text[i]) for i in range(0, len(text) - self.per_token + 1, self.per_token)]
+        ids = np.array([BOS, *body, EOS], dtype=np.int64)
+        return Encoded(text=text, ids=ids, mask=np.ones(len(ids), dtype=np.int64), truncated=False)
+
+
+def piece_ids(pieces: list[Encoded]) -> list[list[int]]:
+    return [p.ids.tolist() for p in pieces]
+
+
+def varied(chars: int) -> str:
+    """A text whose every character differs from its neighbours, so a misplaced cut shows."""
+    return "".join(chr(0x4E00 + (i * 7919) % 20_000) for i in range(chars))
+
+
+@pytest.mark.parametrize("name", POLICIES)
+def test_text_within_its_cut_is_encoded_whole(name):
+    model = CharModel()
+    text = varied(SPANS[name])  # exactly the cut: nothing to remove
+    e = encode(model, text, policy(name))
+    assert model.seen == [text]
+    assert e.truncated is False and e.ids.tolist() == model.encode(text).ids.tolist()
+
+
+@pytest.mark.parametrize("name", POLICIES)
+def test_cut_text_gives_the_pieces_of_the_whole_text(name):
+    for chars in (SPANS[name] + 1, 3 * SPANS[name]):
+        text, model = varied(chars), CharModel()
+        cut, _ = split(encode(model, text, policy(name)), policy(name))
+        whole, truncated = split(model.encode(text), policy(name))
+        assert piece_ids(cut) == piece_ids(whole)
+        assert all(p.truncated == truncated for p in cut)
+
+
+def test_head_tail_tokenises_both_ends_apart():
+    text, model = varied(100_000), CharModel()
+    e = encode(model, text, policy("head_tail"))
+    assert model.seen == [text[: 8 * 511], text[-8 * 511 :]]  # never joined: no merge across the gap
+    assert e.ids.tolist() == [BOS, *(ord(c) for c in text[:511]), *(ord(c) for c in text[-511:]), EOS]
+    assert e.truncated is True and e.text == text
+
+
+@pytest.mark.parametrize("name", POLICIES)
+async def test_a_2_mib_text_never_reaches_the_tokenizer_whole(fake_model, name):
+    lengths = []
+    fake_model.on_encode = lambda text: lengths.append(len(text))
+    e = Engine(fake_model, 10**9, 32, cost=CostModel(1.0, 0.0), policy=policy(name))
+    await e.start()
+    await e.classify("word " * (2 * 1024 * 1024 // 5))
+    await e.close()
+    assert lengths and sum(lengths) <= SPANS[name]
+    if name == "head_tail":
+        assert lengths == [8 * 511, 8 * 511]
+
+
+@pytest.mark.parametrize("name", POLICIES)
+def test_fewer_tokens_than_the_margin_assumes_is_accepted(name):
+    model = CharModel(per_token=30)  # a run of newlines: about 30 characters per token
+    text = varied(100_000)
+    pieces, truncated = split(encode(model, text, policy(name)), policy(name))
+    kept = sum(len(p.ids) - 2 for p in pieces)
+    assert truncated is True and all(p.truncated for p in pieces)
+    assert kept < (USEFUL if name != "chunks" else 8 * USEFUL)
+    assert max(len(p.ids) for p in pieces) <= WINDOW
+
+
+async def test_tokenisation_is_timed(client):
+    await client.post("/classify", json={"input": "hello"})
+    assert "tantive_tokenize_seconds_bucket" in (await client.get("/metrics")).text
+
+
+# --- the same with the real tokenizer (slow: S1D1_TEST_MODEL_DIR) ----------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def onnx_model():
+    path = os.environ.get("S1D1_TEST_MODEL_DIR")
+    if not path:
+        pytest.skip("S1D1_TEST_MODEL_DIR not set")
+    from tantive.model import OnnxModel
+
+    return OnnxModel(path, threads=os.cpu_count() or 1, inter_op_threads=1)
+
+
+def at(name: str, useful: int) -> LongPromptPolicy:
+    """The policy with `useful` ids per piece (1 022, 510 or 254)."""
+    return LongPromptPolicy(name, window=useful + 2, chunk_tokens=useful + 2)
+
+
+@pytest.mark.slow
+def test_cut_keeps_the_ids_of_the_full_encoding_on_the_corpus(onnx_model):
+    from tests.fixtures import corpus
+
+    for lang in corpus.NAMES:
+        for chars in (20_000, 100_000):
+            text = corpus.text(lang, chars)
+            whole = onnx_model.encode(text)
+            for name in POLICIES:
+                for useful in (1022, 510, 254):
+                    p = at(name, useful)
+                    cut = encode(onnx_model, text, p)
+                    assert piece_ids(split(cut, p)[0]) == piece_ids(split(whole, p)[0]), (lang, chars, name, useful)
+                    assert chars == 20_000 or cut.truncated is True  # 100 000 characters are beyond every cut
+
+
+def random_text(rng: np.random.Generator, chars: int) -> str:
+    """Words of 1 to 12 characters, one in twenty of 500 to 40 000 without a space (Latin, digits, CJK, symbols): the
+    long ones straddle the kept ids and the cut, where a BPE merge could in theory differ (docs/40 § 5)."""
+    alphabet = np.array(
+        list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789éèàçœß=+-_/.,;:!?()[]{}#@*&%$")
+        + [chr(0x4E00 + i) for i in range(300)]
+    )
+    words, n = [], 0
+    while n < chars:
+        length = int(rng.integers(500, 40_000)) if rng.random() < 0.05 else int(rng.integers(1, 13))
+        words.append("".join(rng.choice(alphabet, size=length)) + (" " if rng.random() < 0.8 else "\n"))
+        n += length + 1
+    return "".join(words)[:chars]
+
+
+@pytest.mark.slow
+def test_cut_keeps_the_ids_of_the_full_encoding_on_random_long_words(onnx_model):
+    rng = np.random.default_rng(40)
+    for _ in range(20):
+        text = random_text(rng, 80_000)
+        whole = onnx_model.encode(text)
+        for name in POLICIES:
+            for useful in (1022, 510, 254):
+                p = at(name, useful)
+                assert piece_ids(split(encode(onnx_model, text, p), p)[0]) == piece_ids(split(whole, p)[0])
+
+
+@pytest.mark.slow
+async def test_a_text_of_newlines_is_classified_on_fewer_tokens(onnx_model):
+    e = Engine(onnx_model, 10**9, 32, cost=CostModel(1.0, 0.0))
+    await e.start()
+    out, _ = await e.classify("a" + "\n" * 99_998 + "b")  # about 30 characters per token: the cut keeps less than U
+    await e.close()
+    assert out.truncated is True and out.prompt_tokens - 2 < USEFUL
+
+
+@pytest.mark.slow
+async def test_a_text_of_newlines_over_http(onnx_model, settings_factory):
+    import httpx
+
+    from tantive.app import create_app
+
+    app = create_app(settings_factory(), onnx_model)
+    state = "a" + "\n" * 48_998 + "b"  # 49 000 characters: under the 413 of 50 000
+    question = {"tier": {"type": "choice", "criteria": {"SIMPLE": "", "COMPLEX": ""}}}
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+            r = await c.post("/v1/systemone", json={"state": state, "questions": question})
+    assert r.status_code == 200
+    assert r.json()["routing"]["truncated"] is True and r.json()["usage"]["input_tokens"] - 2 < USEFUL
+
+
+@pytest.mark.slow
+def test_a_2_mib_text_tokenises_in_under_5_ms(onnx_model):
+    import time
+
+    from tests.fixtures import corpus
+
+    text, p = corpus.text("english", 2 * 1024 * 1024), policy("head_tail")
+    timings = []
+    for _ in range(5):
+        t0 = time.perf_counter()
+        encode(onnx_model, text, p)
+        timings.append(time.perf_counter() - t0)
+    assert min(timings) < 0.005, timings
+
+
+@pytest.mark.slow
+async def test_outputs_match_0_8_1_on_the_corpus(onnx_model):
+    """The engine's outputs on the fixture corpus, as recorded with 0.8.1 before the cut existed: same piece ids
+    (exactly), same outputs (to float noise across machines)."""
+    import hashlib
+    import json
+
+    from tests.fixtures import corpus
+
+    if onnx_model.info.onnx_file != "model_int8.onnx" or onnx_model.info.max_length != WINDOW:
+        pytest.skip("the reference was recorded with small-onnx-int8")
+    with open(os.path.join(os.path.dirname(__file__), "fixtures", "reference_0_8_1.json"), encoding="utf-8") as f:
+        cases = json.load(f)["cases"]
+    seen: list[list[np.ndarray]] = []
+
+    class Spy:
+        info = onnx_model.info
+
+        def encode(self, text):
+            return onnx_model.encode(text)
+
+        def run_encoded(self, pieces):
+            seen.append([p.ids for p in pieces])
+            return onnx_model.run_encoded(pieces)
+
+    for name in POLICIES:
+        e = Engine(
+            Spy(),
+            10**9,
+            32,
+            cost=CostModel(1.0, 0.0),
+            policy=LongPromptPolicy.from_settings(Settings.from_env({"S1D1_LONG_PROMPTS": name}), WINDOW),
+        )
+        await e.start()
+        for key, want in cases.items():
+            lang, chars, policy_name = key.split("/")
+            if policy_name != name:
+                continue
+            seen.clear()
+            out, _ = await e.classify(corpus.text(lang, int(chars)))
+            (pieces,) = seen
+            assert [len(p) for p in pieces] == want["piece_lengths"], key
+            assert hashlib.sha256(b"".join(p.tobytes() for p in pieces)).hexdigest() == want["piece_ids_sha256"], key
+            assert (out.prompt_tokens, out.truncated, out.pieces) == (
+                want["prompt_tokens"],
+                want["truncated"],
+                want["pieces"],
+            ), key
+            assert out.complexity_output == pytest.approx(want["complexity_output"], abs=1e-4), key
+            assert out.needs_tools_logit == pytest.approx(want["needs_tools_logit"], abs=1e-4), key
+            assert np.allclose(out.task_logits, want["task_logits"], atol=1e-4), key
+        await e.close()

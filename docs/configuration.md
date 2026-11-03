@@ -44,6 +44,13 @@ while `chunks` costs about 2.3 passes per long prompt and was no better than `he
 per-token cost), so a long prompt under `chunks` is shed sooner. Responses report `pieces` (see [formats.md](formats.md))
 and `/info` the policy and the `chunks` settings.
 
+Only the part a policy can keep is tokenised. The text is first cut at 8 characters per kept token (the first
+8 × 1 022 characters under `head`, the last ones under `tail`, 8 × 511 at each end under `head_tail`, tokenised apart,
+and 8 × `S1D1_CHUNK_MAX` × `S1D1_CHUNK_TOKENS` under `chunks`), then cut exactly on tokens as above. Real text runs 1.5
+to 3 characters per token, so the kept tokens are those of the whole text, and a 2 MiB text is tokenised in about 1 ms
+instead of 300 (Apple M4 Max). A text of more than 8 characters per token (a run of newlines or of `=`) keeps fewer
+tokens than the policy allows, and still reports `truncated`. `tantive_tokenize_seconds` on `/metrics` shows the time.
+
 ## Tier names
 
 `S1D1_TIERS` sets the names and upper bounds of the native tiers (a score up to a bound belongs to that tier; the
@@ -86,5 +93,5 @@ queue.
 ## Metrics and tracing
 
 `GET /metrics` exposes `tantive_decisions_total` (by tier), `tantive_request_latency_seconds` (queue included),
-`tantive_prompt_tokens` `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total` and the gauge `tantive_capture_send_pending_bytes`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
+`tantive_prompt_tokens`, `tantive_tokenize_seconds`, `tantive_in_flight_requests`, and with capture on `tantive_capture_written_total` and `tantive_capture_dropped_total`, and with sending on `tantive_capture_sent_total`, `tantive_capture_send_failed_total` and `tantive_capture_send_rejected_total` and the gauge `tantive_capture_send_pending_bytes`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export the same metrics
 and traces over OTLP; `/health`, `/ready` and `/metrics` are not traced. Logs are JSON lines on standard output.
